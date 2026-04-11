@@ -47,7 +47,7 @@ export default function Login() {
           }}>
             <Plane size={26} color="white" />
           </div>
-          <h1 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 4 }}>GCIT Travel Agency CRM</h1>
+          <h1 style={{ color: 'white', fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Travel Agency CRM System</h1>
           <p style={{ color: '#94a3b8', fontSize: 13 }}>Travel Agency Management System</p>
         </div>
 

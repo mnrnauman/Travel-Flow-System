@@ -70,7 +70,7 @@ router.post('/test-email', requireRole('ADMIN', 'MANAGER', 'SUPER_ADMIN'), async
     const { to } = req.body
     const result = await sendEmail(req.agencyId, {
       to: to || req.user.email,
-      subject: 'GCIT Travel Agency CRM — SMTP Test',
+      subject: 'Travel Agency CRM System — SMTP Test',
       html: '<h2>SMTP test successful!</h2><p>Your email settings are configured correctly.</p>',
       text: 'SMTP test successful! Your email settings are configured correctly.'
     })

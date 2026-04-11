@@ -1,7 +1,7 @@
-# GCIT Travel Agency CRM System — Deployment Guide
+# Travel Agency CRM System — Deployment Guide
 
 ## Overview
-GCIT Travel Agency CRM is a Node.js + React application that requires:
+Travel Agency CRM System is a Node.js + React application that requires:
 - **Node.js** 18+ 
 - **PostgreSQL** 14+
 - **A reverse proxy** (Nginx recommended)

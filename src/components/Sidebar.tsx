@@ -22,7 +22,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
           <Plane size={18} />
         </div>
         <div>
-          <div className="logo-text">GCIT Travel</div>
+          <div className="logo-text">Travel Agency CRM</div>
           <div className="logo-sub">CRM System</div>
         </div>
       </div>
@@ -47,7 +47,7 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
       <div className="sidebar-footer">
         <div className="nav-item" style={{ color: 'var(--gray-400)', fontSize: '12px' }}>
           <Plane size={14} />
-          GCIT Travel Agency CRM v1.0
+          Travel Agency CRM System v1.0
         </div>
       </div>
     </aside>

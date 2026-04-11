@@ -1,4 +1,4 @@
-# GCIT Travel Agency CRM System
+# Travel Agency CRM System
 
 ## Overview
 

@@ -29,7 +29,7 @@ function printInvoice(inv: any) {
   </style></head><body>
     <div class="header">
       <div>
-        <div class="logo">GCIT Travel Agency CRM</div>
+        <div class="logo">Travel Agency CRM System</div>
         <div style="font-size:13px;color:#64748b;margin-top:6px">${inv.agency?.name || ''}</div>
         <div style="font-size:12px;color:#94a3b8">${inv.agency?.email || ''}</div>
       </div>

@@ -21,7 +21,7 @@ function printQuotation(q: any) {
     @media print{body{padding:20px}}
   </style></head><body>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px">
-      <div><div class="logo">GCIT Travel Agency CRM</div></div>
+      <div><div class="logo">Travel Agency CRM System</div></div>
       <div style="text-align:right">
         <div style="font-size:26px;font-weight:800;color:#2563eb">${q.quoteNumber}</div>
         <div style="font-size:13px;color:#64748b">QUOTATION</div>

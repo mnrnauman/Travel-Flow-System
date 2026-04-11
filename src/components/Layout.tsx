@@ -142,8 +142,8 @@ export default function Layout({ activePage, onNavigate, children }: LayoutProps
             {agency?.logo ? <img src={agency.logo} alt="" style={{ width: 18, height: 18, objectFit: 'contain' }} /> : <Plane size={18} />}
           </div>
           <div>
-            <div className="logo-text">{agency?.name || 'GCIT Travel'}</div>
-            <div className="logo-sub">CRM System</div>
+            <div className="logo-text">Travel Agency CRM</div>
+            <div className="logo-sub">System</div>
           </div>
         </div>
 

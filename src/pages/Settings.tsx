@@ -103,7 +103,7 @@ export default function Settings() {
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Agency Name *</label>
-                  <input className="form-input" value={settings.name || ''} onChange={e => set('name', e.target.value)} placeholder="GCIT Travel Agency" />
+                  <input className="form-input" value={settings.name || ''} onChange={e => set('name', e.target.value)} placeholder="Travel Agency CRM" />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Email Address *</label>
@@ -217,7 +217,7 @@ export default function Settings() {
                 </div>
                 <div className="form-group">
                   <label className="form-label">From Name</label>
-                  <input className="form-input" value={settings.smtpFromName || ''} onChange={e => set('smtpFromName', e.target.value)} placeholder="GCIT Travel Agency" />
+                  <input className="form-input" value={settings.smtpFromName || ''} onChange={e => set('smtpFromName', e.target.value)} placeholder="Travel Agency CRM" />
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
