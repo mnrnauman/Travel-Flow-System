@@ -17,6 +17,7 @@ import Automation from './pages/Automation'
 import Settings from './pages/Settings'
 import Profile from './pages/Profile'
 import Calendar from './pages/Calendar'
+import Commissions from './pages/Commissions'
 
 const PAGES: Record<string, React.ComponentType<any>> = {
   dashboard: Dashboard,
@@ -33,6 +34,7 @@ const PAGES: Record<string, React.ComponentType<any>> = {
   settings: Settings,
   profile: Profile,
   calendar: Calendar,
+  commissions: Commissions,
 }
 
 function getSlugFromPath(): string | null {

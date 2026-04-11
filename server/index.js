@@ -27,6 +27,7 @@ import searchRoutes from './routes/search.js'
 import notificationRoutes from './routes/notifications.js'
 import uploadRoutes from './routes/uploads.js'
 import superAdminRoutes from './routes/superAdmin.js'
+import commissionRoutes from './routes/commissions.js'
 
 const app = express()
 const PORT = process.env.API_PORT || 3001
@@ -107,6 +108,7 @@ app.use('/api/search', searchRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/uploads', uploadRoutes)
 app.use('/api/super-admin', superAdminRoutes)
+app.use('/api/commissions', commissionRoutes)
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))

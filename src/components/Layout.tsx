@@ -23,6 +23,7 @@ const navItems = [
   { id: 'quotations', label: 'Quotations', icon: FileText, section: 'operations' },
   { id: 'bookings', label: 'Bookings', icon: BookOpen, section: 'operations' },
   { id: 'invoices', label: 'Invoices & Payments', icon: DollarSign, section: 'finance' },
+  { id: 'commissions', label: 'Commissions', icon: TrendingUp, section: 'finance' },
   { id: 'suppliers', label: 'Suppliers', icon: Package, section: 'operations' },
   { id: 'team', label: 'Team & Agents', icon: UserCog, section: 'admin' },
   { id: 'reports', label: 'Reports', icon: BarChart3, section: 'admin' },
@@ -40,9 +41,9 @@ const sections: Record<string, string> = {
 const pageTitles: Record<string, string> = {
   dashboard: 'Dashboard', leads: 'Lead Management', customers: 'Customers',
   itineraries: 'Itinerary Builder', quotations: 'Quotations', bookings: 'Bookings',
-  invoices: 'Invoices & Payments', suppliers: 'Suppliers', team: 'Team & Agents',
-  reports: 'Reports & Analytics', automation: 'Automation', calendar: 'Calendar',
-  settings: 'Settings', profile: 'My Profile'
+  invoices: 'Invoices & Payments', commissions: 'Commission Tracking', suppliers: 'Suppliers',
+  team: 'Team & Agents', reports: 'Reports & Analytics', automation: 'Automation',
+  calendar: 'Calendar', settings: 'Settings', profile: 'My Profile'
 }
 
 const NOTIF_ICON: Record<string, any> = {
