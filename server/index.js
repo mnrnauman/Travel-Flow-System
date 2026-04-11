@@ -30,7 +30,7 @@ import superAdminRoutes from './routes/superAdmin.js'
 import commissionRoutes from './routes/commissions.js'
 
 const app = express()
-const PORT = process.env.API_PORT || 3001
+const PORT = process.env.PORT || process.env.API_PORT || 3001
 
 // Stripe webhook MUST be registered before express.json()
 if (process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
@@ -112,6 +112,17 @@ app.use('/api/commissions', commissionRoutes)
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
+
+// Serve built frontend in production
+const distPath = path.join(__dirname, '../dist')
+if (process.env.NODE_ENV === 'production' || process.env.SERVE_FRONTEND === 'true') {
+  app.use(express.static(distPath))
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
+      res.sendFile(path.join(distPath, 'index.html'))
+    }
+  })
+}
 
 app.use((err, req, res, next) => {
   console.error(err)
