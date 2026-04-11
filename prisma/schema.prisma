@@ -1,0 +1,488 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  PROPOSAL_SENT
+  NEGOTIATING
+  BOOKED
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  WHATSAPP
+  PHONE
+  EMAIL
+  REFERRAL
+  WALK_IN
+  SOCIAL_MEDIA
+  OTHER
+}
+
+enum BookingStatus {
+  DRAFT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+  OVERDUE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SupplierType {
+  HOTEL
+  AIRLINE
+  TOUR_OPERATOR
+  TRANSFER
+  ACTIVITY
+  VISA
+  INSURANCE
+  OTHER
+}
+
+enum ItineraryItemType {
+  FLIGHT
+  HOTEL
+  TRANSFER
+  ACTIVITY
+  MEAL
+  VISA
+  INSURANCE
+  OTHER
+}
+
+model Agency {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  email       String
+  phone       String?
+  address     String?
+  city        String?
+  country     String?
+  logo        String?
+  website     String?
+  currency    String   @default("USD")
+  timezone    String   @default("UTC")
+  taxRate     Float    @default(0)
+  invoicePrefix  String @default("INV")
+  quotationPrefix String @default("QUO")
+  paymentTerms   String @default("30")
+  invoiceFooter  String?
+  smtpHost    String?
+  smtpPort    Int?
+  smtpUser    String?
+  smtpPass    String?
+  smtpFrom    String?
+  smtpFromName String?
+  smtpSecure  Boolean  @default(true)
+  stripeCustomerId    String?
+  stripeSubscriptionId String?
+  planTier    String   @default("starter")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  leads       Lead[]
+  customers   Customer[]
+  itineraries Itinerary[]
+  quotations  Quotation[]
+  bookings    Booking[]
+  invoices    Invoice[]
+  suppliers   Supplier[]
+  automations AutomationTemplate[]
+  documents   Document[]
+}
+
+model User {
+  id         String   @id @default(uuid())
+  agencyId   String
+  agency     Agency   @relation(fields: [agencyId], references: [id])
+  email      String
+  password   String
+  firstName  String
+  lastName   String
+  phone      String?
+  avatar     String?
+  role       UserRole @default(AGENT)
+  isActive   Boolean  @default(true)
+  commissionRate Float @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  assignedLeads     Lead[]     @relation("AssignedAgent")
+  assignedBookings  Booking[]  @relation("BookingAgent")
+  createdQuotations Quotation[]
+  commissions       Commission[]
+
+  @@unique([agencyId, email])
+}
+
+model Lead {
+  id          String     @id @default(uuid())
+  agencyId    String
+  agency      Agency     @relation(fields: [agencyId], references: [id])
+  assignedToId String?
+  assignedTo  User?      @relation("AssignedAgent", fields: [assignedToId], references: [id])
+  customerId  String?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  source      LeadSource @default(OTHER)
+  status      LeadStatus @default(NEW)
+  destination String?
+  travelDates String?
+  numTravelers Int?
+  budget      Float?
+  currency    String     @default("USD")
+  notes       String?
+  tags        String[]
+
+  followUpDate DateTime?
+  convertedAt  DateTime?
+
+  activities  LeadActivity[]
+  quotations  Quotation[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model LeadActivity {
+  id       String   @id @default(uuid())
+  leadId   String
+  lead     Lead     @relation(fields: [leadId], references: [id])
+  type     String
+  note     String
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id         String   @id @default(uuid())
+  agencyId   String
+  agency     Agency   @relation(fields: [agencyId], references: [id])
+  firstName  String
+  lastName   String
+  email      String?
+  phone      String?
+  nationality String?
+  passportNumber String?
+  passportExpiry String?
+  dateOfBirth String?
+  address    String?
+
+  preferences Json?
+  notes       String?
+  tags        String[]
+
+  leads      Lead[]
+  bookings   Booking[]
+  invoices   Invoice[]
+  documents  Document[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([agencyId, email])
+}
+
+model Itinerary {
+  id          String   @id @default(uuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id])
+  title       String
+  destination String
+  duration    Int
+  description String?
+  coverImage  String?
+  shareToken  String   @unique @default(uuid())
+  isPublic    Boolean  @default(false)
+
+  items       ItineraryItem[]
+  quotations  Quotation[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ItineraryItem {
+  id            String            @id @default(uuid())
+  itineraryId   String
+  itinerary     Itinerary         @relation(fields: [itineraryId], references: [id])
+  supplierId    String?
+  supplier      Supplier?         @relation(fields: [supplierId], references: [id])
+
+  type          ItineraryItemType
+  dayNumber     Int
+  title         String
+  description   String?
+  location      String?
+  checkIn       String?
+  checkOut      String?
+  duration      String?
+  price         Float             @default(0)
+  currency      String            @default("USD")
+  notes         String?
+  sortOrder     Int               @default(0)
+
+  createdAt     DateTime          @default(now())
+}
+
+model Quotation {
+  id           String          @id @default(uuid())
+  agencyId     String
+  agency       Agency          @relation(fields: [agencyId], references: [id])
+  leadId       String?
+  lead         Lead?           @relation(fields: [leadId], references: [id])
+  itineraryId  String?
+  itinerary    Itinerary?      @relation(fields: [itineraryId], references: [id])
+  createdById  String
+  createdBy    User            @relation(fields: [createdById], references: [id])
+
+  quoteNumber  String
+  title        String
+  status       QuotationStatus @default(DRAFT)
+  validUntil   DateTime?
+  currency     String          @default("USD")
+
+  subtotal     Float           @default(0)
+  discount     Float           @default(0)
+  tax          Float           @default(0)
+  total        Float           @default(0)
+  notes        String?
+
+  items        QuotationItem[]
+  booking      Booking?
+
+  sentAt       DateTime?
+  acceptedAt   DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model QuotationItem {
+  id           String    @id @default(uuid())
+  quotationId  String
+  quotation    Quotation @relation(fields: [quotationId], references: [id])
+  description  String
+  type         String    @default("service")
+  quantity     Int       @default(1)
+  unitPrice    Float
+  total        Float
+  notes        String?
+  sortOrder    Int       @default(0)
+}
+
+model Booking {
+  id           String        @id @default(uuid())
+  agencyId     String
+  agency       Agency        @relation(fields: [agencyId], references: [id])
+  quotationId  String?       @unique
+  quotation    Quotation?    @relation(fields: [quotationId], references: [id])
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  agentId      String?
+  agent        User?         @relation("BookingAgent", fields: [agentId], references: [id])
+
+  bookingNumber String
+  title         String
+  destination   String?
+  departureDate DateTime?
+  returnDate    DateTime?
+  numTravelers  Int          @default(1)
+  status        BookingStatus @default(CONFIRMED)
+  currency      String       @default("USD")
+  totalAmount   Float
+  paidAmount    Float        @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
+  notes         String?
+
+  invoices     Invoice[]
+  commissions  Commission[]
+  documents    Document[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Invoice {
+  id           String        @id @default(uuid())
+  agencyId     String
+  agency       Agency        @relation(fields: [agencyId], references: [id])
+  bookingId    String?
+  booking      Booking?      @relation(fields: [bookingId], references: [id])
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+
+  invoiceNumber String
+  status       InvoiceStatus @default(DRAFT)
+  currency     String        @default("USD")
+  subtotal     Float
+  discount     Float         @default(0)
+  tax          Float         @default(0)
+  total        Float
+  amountPaid   Float         @default(0)
+  amountDue    Float
+  dueDate      DateTime?
+  notes        String?
+
+  stripePaymentIntentId String?
+  stripeInvoiceId       String?
+
+  items        InvoiceItem[]
+  payments     InvoicePayment[]
+
+  sentAt       DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id])
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+  total       Float
+  sortOrder   Int     @default(0)
+}
+
+model InvoicePayment {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  amount      Float
+  currency    String   @default("USD")
+  method      String
+  reference   String?
+  notes       String?
+  paidAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model Supplier {
+  id           String       @id @default(uuid())
+  agencyId     String
+  agency       Agency       @relation(fields: [agencyId], references: [id])
+  name         String
+  type         SupplierType
+  email        String?
+  phone        String?
+  website      String?
+  address      String?
+  country      String?
+  contactPerson String?
+  currency     String       @default("USD")
+  rating       Int?
+  notes        String?
+  isActive     Boolean      @default(true)
+
+  contracts    SupplierContract[]
+  itineraryItems ItineraryItem[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model SupplierContract {
+  id          String   @id @default(uuid())
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  title       String
+  validFrom   DateTime?
+  validTo     DateTime?
+  terms       String?
+  discount    Float    @default(0)
+  currency    String   @default("USD")
+  notes       String?
+  createdAt   DateTime @default(now())
+}
+
+model AutomationTemplate {
+  id          String   @id @default(uuid())
+  agencyId    String
+  agency      Agency   @relation(fields: [agencyId], references: [id])
+  name        String
+  trigger     String
+  channel     String
+  subject     String?
+  body        String
+  isActive    Boolean  @default(true)
+  delayDays   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  agencyId     String
+  agency       Agency   @relation(fields: [agencyId], references: [id])
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  bookingId    String?
+  booking      Booking?  @relation(fields: [bookingId], references: [id])
+  name         String
+  type         String   @default("other")
+  url          String
+  size         Int?
+  mimeType     String?
+  uploadedById String?
+  createdAt    DateTime @default(now())
+}
+
+model Commission {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  amount     Float
+  rate       Float
+  status     String   @default("pending")
+  paidAt     DateTime?
+  createdAt  DateTime @default(now())
+}
