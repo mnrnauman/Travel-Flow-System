@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
+import SuperAdmin from './pages/SuperAdmin'
 import Dashboard from './pages/Dashboard'
 import Leads from './pages/Leads'
 import Customers from './pages/Customers'
@@ -34,30 +35,48 @@ const PAGES: Record<string, React.ComponentType<any>> = {
   calendar: Calendar,
 }
 
-function AppRoutes() {
-  const { user, loading } = useAuth()
-  const [activePage, setActivePage] = useState('dashboard')
+function getSlugFromPath(): string | null {
+  const path = window.location.pathname.replace(/^\/+|\/+$/g, '')
+  if (!path || path === 'index.html') return null
+  return path
+}
 
-  if (loading) {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#f8fafc'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 40, height: 40, border: '3px solid #e2e8f0',
-            borderTopColor: '#2563eb', borderRadius: '50%',
-            animation: 'spin 0.8s linear infinite', margin: '0 auto 12px'
-          }} />
-          <div style={{ fontSize: 13, color: '#64748b' }}>Loading...</div>
-        </div>
+function Spinner() {
+  return (
+    <div style={{
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: '#f8fafc'
+    }}>
+      <div style={{ textAlign: 'center' }}>
+        <div style={{
+          width: 40, height: 40, border: '3px solid #e2e8f0',
+          borderTopColor: '#2563eb', borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite', margin: '0 auto 12px'
+        }} />
+        <div style={{ fontSize: 13, color: '#64748b' }}>Loading...</div>
       </div>
-    )
+    </div>
+  )
+}
+
+function AppRoutes() {
+  const { user, superAdmin, isSuperAdmin, loading } = useAuth()
+  const [activePage, setActivePage] = useState('dashboard')
+  const [slug] = useState<string | null>(getSlugFromPath)
+
+  if (loading) return <Spinner />
+
+  // Not logged in
+  if (!user && !superAdmin) {
+    return <Login slug={slug || undefined} />
   }
 
-  if (!user) return <Login />
+  // Super admin dashboard
+  if (isSuperAdmin) {
+    return <SuperAdmin />
+  }
 
+  // Normal agency user — show CRM
   const PageComponent = PAGES[activePage] || Dashboard
 
   return (

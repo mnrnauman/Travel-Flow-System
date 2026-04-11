@@ -89,6 +89,15 @@ enum ItineraryItemType {
   OTHER
 }
 
+model SuperAdmin {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String   @default("Platform Admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Agency {
   id          String   @id @default(uuid())
   name        String
@@ -117,6 +126,7 @@ model Agency {
   stripeCustomerId    String?
   stripeSubscriptionId String?
   planTier    String   @default("starter")
+  primaryColor String? 
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -2,7 +2,13 @@
 
 ## Overview
 
-A full-featured **Travel Agency CRM SaaS** system — multi-tenant, production-ready. Multiple travel agencies can register and manage their own isolated workspace. Built with Node.js + Express backend and React + Vite frontend.
+A full-featured **Travel Agency CRM SaaS** system — white-label, multi-tenant, production-ready. A single platform where a super admin creates and manages multiple travel agency clients, each with their own branded login URL and isolated data. Built with Node.js + Express backend and React + Vite frontend.
+
+## Access Model
+
+- **Super Admin** — Platform owner. Logs in at the root URL (`/`). Creates agencies, manages users, controls the whole platform.
+- **Agency Users** — Each agency has its own login URL: `yoursite.com/agency-slug`. Shows branded login with agency name/logo.
+- **No public registration** — Agencies can only be created by the super admin.
 
 ## Architecture
 

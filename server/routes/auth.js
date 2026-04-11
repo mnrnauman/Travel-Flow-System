@@ -1,69 +1,67 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import prisma from '../lib/prisma.js'
-import { generateToken, authenticate } from '../middleware/auth.js'
+import { generateToken, generateSuperAdminToken, authenticate } from '../middleware/auth.js'
 
 const router = Router()
 
-// Register agency + admin user
-router.post('/register', async (req, res) => {
+// Public: get agency branding by slug (for branded login page)
+router.get('/agency/:slug', async (req, res) => {
   try {
-    const { agencyName, email, password, firstName, lastName, phone } = req.body
-    if (!agencyName || !email || !password) {
-      return res.status(400).json({ error: 'Agency name, email and password required' })
-    }
-
-    const slug = agencyName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') + '-' + Date.now()
-    const existing = await prisma.user.findFirst({ where: { email, agency: { slug } } })
-    if (existing) return res.status(400).json({ error: 'Email already registered' })
-
-    const hashed = await bcrypt.hash(password, 12)
-
-    const agency = await prisma.agency.create({
-      data: {
-        name: agencyName,
-        slug,
-        email,
-        users: {
-          create: {
-            email,
-            password: hashed,
-            firstName: firstName || 'Admin',
-            lastName: lastName || 'User',
-            phone,
-            role: 'ADMIN',
-          }
-        }
-      },
-      include: { users: true }
+    const agency = await prisma.agency.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, name: true, slug: true, logo: true, primaryColor: true, isActive: true }
     })
-
-    const user = agency.users[0]
-    const token = generateToken(user.id)
-    res.json({ token, user: sanitizeUser(user), agency: sanitizeAgency(agency) })
+    if (!agency) return res.status(404).json({ error: 'Agency not found' })
+    if (!agency.isActive) return res.status(403).json({ error: 'Agency account is inactive' })
+    res.json(agency)
   } catch (err) {
-    console.error(err)
     res.status(500).json({ error: err.message })
   }
 })
 
-// Login
+// Login scoped to an agency slug
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body
+    const { email, password, slug } = req.body
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
 
+    let whereClause = { email, isActive: true }
+    if (slug) {
+      whereClause = { ...whereClause, agency: { slug } }
+    }
+
     const user = await prisma.user.findFirst({
-      where: { email, isActive: true },
+      where: whereClause,
       include: { agency: true }
     })
     if (!user) return res.status(401).json({ error: 'Invalid credentials' })
+    if (!user.agency.isActive) return res.status(403).json({ error: 'Agency account is inactive' })
 
     const valid = await bcrypt.compare(password, user.password)
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
 
     const token = generateToken(user.id)
     res.json({ token, user: sanitizeUser(user), agency: sanitizeAgency(user.agency) })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Super admin login
+router.post('/super-admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
+
+    const sa = await prisma.superAdmin.findUnique({ where: { email } })
+    if (!sa) return res.status(401).json({ error: 'Invalid credentials' })
+
+    const valid = await bcrypt.compare(password, sa.password)
+    if (!valid) return res.status(401).json({ error: 'Invalid credentials' })
+
+    const token = generateSuperAdminToken(sa.id)
+    res.json({ token, superAdmin: { id: sa.id, email: sa.email, name: sa.name } })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
@@ -115,7 +113,7 @@ function sanitizeUser(u) {
 
 function sanitizeAgency(a) {
   if (!a) return null
-  const { stripeCustomerId, stripeSubscriptionId, ...rest } = a
+  const { stripeCustomerId, stripeSubscriptionId, smtpPass, ...rest } = a
   return rest
 }
 
