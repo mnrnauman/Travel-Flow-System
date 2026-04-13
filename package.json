@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5000",
     "server": "node server/index.js",
-    "build": "tsc && vite build && npx prisma db push --accept-data-loss && npx prisma generate",
+    "build": "tsc && vite build && npx prisma generate",
     "preview": "vite preview",
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "@prisma/adapter-neon": "^7.7.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "axios": "^1.6.0",

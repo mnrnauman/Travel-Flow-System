@@ -12,27 +12,33 @@ import bcrypt from 'bcryptjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 async function seedSuperAdmin() {
-  try {
-    const { default: prismaClient } = await import('./lib/prisma.js')
-    const email = process.env.SUPER_ADMIN_EMAIL || 'superadmin@travelcrm.com'
-    const password = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025!'
-    const existing = await prismaClient.superAdmin.findUnique({ where: { email } })
-    if (!existing) {
-      const hashed = await bcrypt.hash(password, 12)
-      await prismaClient.superAdmin.create({
-        data: { email, password: hashed, name: 'Platform Admin' }
-      })
-      console.log(`✅ Super admin created: ${email}`)
-    } else {
-      console.log(`Super admin ready: ${email}`)
+  const maxAttempts = 5
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const { default: prismaClient } = await import('./lib/prisma.js')
+      const email = process.env.SUPER_ADMIN_EMAIL || 'superadmin@travelcrm.com'
+      const password = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025!'
+      const existing = await prismaClient.superAdmin.findUnique({ where: { email } })
+      if (!existing) {
+        const hashed = await bcrypt.hash(password, 12)
+        await prismaClient.superAdmin.create({
+          data: { email, password: hashed, name: 'Platform Admin' }
+        })
+        console.log(`✅ Super admin created: ${email}`)
+      } else {
+        console.log(`Super admin ready: ${email}`)
+      }
+      return
+    } catch (err) {
+      console.error(`Seed attempt ${attempt}/${maxAttempts} failed: ${err.message}`)
+      if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 3000 * attempt))
     }
-  } catch (err) {
-    console.error('Seed error (non-fatal):', err.message)
   }
+  console.log('Seed skipped after retries — super admin may already exist')
 }
 
 if (process.env.NODE_ENV === 'production') {
-  await seedSuperAdmin()
+  seedSuperAdmin().catch(() => {})
 }
 
 import prisma from './lib/prisma.js'
