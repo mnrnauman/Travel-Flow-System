@@ -7,20 +7,11 @@ import compression from 'compression'
 import Stripe from 'stripe'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { execSync } from 'child_process'
 import bcrypt from 'bcryptjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-async function setupDatabase() {
-  try {
-    console.log('Running database migrations...')
-    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' })
-    console.log('Database schema up to date.')
-  } catch (err) {
-    console.error('DB push failed (may already be up to date):', err.message)
-  }
-
+async function seedSuperAdmin() {
   try {
     const { default: prismaClient } = await import('./lib/prisma.js')
     const email = process.env.SUPER_ADMIN_EMAIL || 'superadmin@travelcrm.com'
@@ -33,15 +24,15 @@ async function setupDatabase() {
       })
       console.log(`✅ Super admin created: ${email}`)
     } else {
-      console.log(`Super admin already exists: ${email}`)
+      console.log(`Super admin ready: ${email}`)
     }
   } catch (err) {
-    console.error('Seed error:', err.message)
+    console.error('Seed error (non-fatal):', err.message)
   }
 }
 
 if (process.env.NODE_ENV === 'production') {
-  await setupDatabase()
+  await seedSuperAdmin()
 }
 
 import prisma from './lib/prisma.js'
