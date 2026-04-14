@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: travel-crm-app
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://crmuser:131019sunday@db:5432/travelcrm
+      - NODE_ENV=production
+      - PORT=5000
+      - JWT_SECRET=your_super_secret_123456789
+      - SUPER_ADMIN_EMAIL=admin@admin.com
+      - SUPER_ADMIN_PASSWORD=admin123
+    depends_on:
+      - db
+
+  db:
+    image: postgres:14
+    container_name: travel-crm-db
+    restart: always
+    environment:
+      POSTGRES_USER: crmuser
+      POSTGRES_PASSWORD: 131019sunday
+      POSTGRES_DB: travelcrm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
