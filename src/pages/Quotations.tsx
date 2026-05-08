@@ -71,7 +71,7 @@ export default function Quotations() {
   const [showConvertModal, setShowConvertModal] = useState(false)
   const [selectedQ, setSelectedQ] = useState<any>(null)
   const [form, setForm] = useState({
-    title: '', currency: 'USD', validUntil: '', discount: '0', tax: '0', notes: ''
+    title: '', currency: 'USD', validUntil: '', discount: '0', tax: '0', notes: '', leadId: ''
   })
   const [items, setItems] = useState<QuoteItem[]>([newItem()])
   const [convertForm, setConvertForm] = useState({ customerId: '', departureDate: '', returnDate: '' })
@@ -81,6 +81,9 @@ export default function Quotations() {
   const { data: quotations, loading, error, refetch } = useApi<any[]>(url, [filterStatus])
   const { data: customersData } = useApi<any>('/customers?limit=200')
   const customers = customersData?.customers || []
+  const { data: leadsData } = useApi<any>('/leads?limit=200&status=NEW&status=CONTACTED&status=PROPOSAL_SENT&status=NEGOTIATING')
+  const { data: allLeadsData } = useApi<any>('/leads?limit=500')
+  const leads = allLeadsData?.leads || []
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -93,7 +96,7 @@ export default function Quotations() {
 
   const handleSave = async () => {
     const res = await submit(() =>
-      api.post('/quotations', { ...form, items })
+      api.post('/quotations', { ...form, leadId: form.leadId || undefined, items })
     )
     if (res) { setShowModal(false); refetch() }
   }
@@ -141,7 +144,7 @@ export default function Quotations() {
           </select>
         </div>
         <button className="btn btn-primary" onClick={() => {
-          setForm({ title: '', currency: 'USD', validUntil: '', discount: '0', tax: '0', notes: '' })
+          setForm({ title: '', currency: 'USD', validUntil: '', discount: '0', tax: '0', notes: '', leadId: '' })
           setItems([newItem()])
           setShowModal(true)
         }}><Plus size={15} /> New Quotation</button>
@@ -235,6 +238,17 @@ export default function Quotations() {
                 </div>
               </div>
               <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Link to Lead</label>
+                  <select className="form-select" value={form.leadId} onChange={e => set('leadId', e.target.value)}>
+                    <option value="">No lead (standalone)</option>
+                    {leads.map((l: any) => (
+                      <option key={l.id} value={l.id}>
+                        {l.firstName} {l.lastName}{l.destination ? ` — ${l.destination}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label className="form-label">Valid Until</label>
                   <input type="date" className="form-input" value={form.validUntil} onChange={e => set('validUntil', e.target.value)} />

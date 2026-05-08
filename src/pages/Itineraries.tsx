@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { Plus, Search, Map, Trash2, PlusCircle, Link, Copy } from 'lucide-react'
+import { Plus, Search, Map, Trash2, PlusCircle, Link, Printer } from 'lucide-react'
 import api from '../lib/api'
 
 const ITEM_TYPES = ['FLIGHT', 'HOTEL', 'TRANSFER', 'ACTIVITY', 'MEAL', 'VISA', 'INSURANCE', 'OTHER']
@@ -15,6 +15,45 @@ const newDayItem = (day: number): ItineraryItem => ({
   type: 'ACTIVITY', dayNumber: day, title: '', description: '',
   location: '', checkIn: '', checkOut: '', duration: '', price: 0, currency: 'USD', notes: ''
 })
+
+function printItinerary(form: any, items: ItineraryItem[]) {
+  const days = [...new Set(items.map(i => i.dayNumber))].sort((a, b) => a - b)
+  const html = `<!DOCTYPE html><html><head><title>${form.title || 'Itinerary'}</title><style>
+    body{font-family:Arial,sans-serif;color:#1a1a2e;margin:0;padding:40px}
+    .logo{font-size:22px;font-weight:800;color:#2563eb}
+    h1{font-size:24px;font-weight:700;margin-bottom:4px}
+    .day-header{background:#2563eb;color:white;padding:8px 16px;border-radius:8px;font-weight:700;font-size:14px;margin:20px 0 10px}
+    .item{padding:12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px}
+    .item-type{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;background:#dbeafe;color:#1d4ed8;margin-bottom:6px}
+    .item-title{font-weight:700;font-size:14px;margin-bottom:4px}
+    .item-detail{font-size:12px;color:#64748b}
+    .price{font-size:13px;font-weight:600;color:#059669}
+    @media print{body{padding:20px}.day-header{background:#2563eb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:30px">
+      <div><div class="logo">Travel Agency CRM System</div></div>
+    </div>
+    <h1>${form.title || 'Itinerary'}</h1>
+    <div style="font-size:14px;color:#64748b;margin-bottom:8px">📍 ${form.destination || ''} &nbsp;·&nbsp; ${form.duration} Days</div>
+    ${form.description ? `<div style="font-size:13px;color:#475569;margin-bottom:24px">${form.description}</div>` : ''}
+    ${days.map(day => {
+      const dayItems = items.filter(i => i.dayNumber === day)
+      return `<div class="day-header">Day ${day}</div>
+      ${dayItems.map(item => `<div class="item">
+        <div class="item-type">${item.type}</div>
+        <div class="item-title">${item.title || '(No title)'}</div>
+        ${item.location ? `<div class="item-detail">📍 ${item.location}</div>` : ''}
+        ${item.description ? `<div class="item-detail" style="margin-top:4px">${item.description}</div>` : ''}
+        ${item.price > 0 ? `<div class="price" style="margin-top:6px">${item.currency} ${Number(item.price).toLocaleString()}</div>` : ''}
+        ${item.checkIn ? `<div class="item-detail">Check-in: ${item.checkIn}</div>` : ''}
+        ${item.checkOut ? `<div class="item-detail">Check-out: ${item.checkOut}</div>` : ''}
+      </div>`).join('')}`
+    }).join('')}
+    <script>window.onload=()=>{ window.print() }</script>
+  </body></html>`
+  const w = window.open('', '_blank')
+  if (w) { w.document.write(html); w.document.close() }
+}
 
 export default function Itineraries() {
   const [search, setSearch] = useState('')
@@ -93,6 +132,9 @@ export default function Itineraries() {
         </div>
         <div className="flex gap-2">
           <button className="btn btn-outline" onClick={() => setShowBuilder(false)}>← Back</button>
+          <button className="btn btn-outline" onClick={() => printItinerary(form, items)} title="Print Itinerary">
+            <Printer size={14} /> Print
+          </button>
           <button className="btn btn-primary" onClick={handleSaveBuilder} disabled={submitting}>
             {submitting ? 'Saving...' : 'Save Itinerary'}
           </button>
@@ -208,7 +250,7 @@ export default function Itineraries() {
               <div style={{ fontSize: 13, color: 'var(--gray-500)', marginBottom: 8 }}>📍 {itin.destination}</div>
               {itin.description && (
                 <div style={{ fontSize: 12, color: 'var(--gray-400)', marginBottom: 8 }}>
-                  {itin.description.slice(0, 80)}...
+                  {itin.description.slice(0, 80)}{itin.description.length > 80 ? '...' : ''}
                 </div>
               )}
               <div className="flex gap-2" style={{ fontSize: 12, color: 'var(--gray-500)' }}>
@@ -221,6 +263,10 @@ export default function Itineraries() {
               <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => openBuilder(itin)}>
                 Open Builder
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={() => openBuilder(itin).then(() => {})} title="Print itinerary"
+                style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Printer size={12} />
               </button>
               <button className="btn btn-sm" style={{ color: 'var(--danger)', border: '1px solid #fca5a5' }}
                 onClick={() => handleDelete(itin.id)}>Delete</button>

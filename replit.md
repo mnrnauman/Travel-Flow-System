@@ -1,135 +1,104 @@
-# Travel Agency CRM System
+# Travel Agency CRM
 
-## Overview
-
-A full-featured **Travel Agency CRM SaaS** system — white-label, multi-tenant, production-ready. A single platform where a super admin creates and manages multiple travel agency clients, each with their own branded login URL and isolated data. Built with Node.js + Express backend and React + Vite frontend.
-
-## Access Model
-
-- **Super Admin** — Platform owner. Logs in at the root URL (`/`). Creates agencies, manages users, controls the whole platform.
-- **Agency Users** — Each agency has its own login URL: `yoursite.com/agency-slug`. Shows branded login with agency name/logo.
-- **No public registration** — Agencies can only be created by the super admin.
+A multi-tenant Customer Relationship Management (CRM) system for travel agencies. It allows agencies to manage leads, customers, itineraries, quotations, bookings, invoices, and suppliers, with support for automated notifications and commission tracking.
 
 ## Architecture
 
-- **Backend**: Node.js + Express 4 + Prisma ORM 7 (port 3001)
-- **Frontend**: React 18 + TypeScript + Vite (port 5000)
-- **Database**: PostgreSQL (Replit managed via DATABASE_URL)
-- **Auth**: JWT + bcrypt, role-based (SUPER_ADMIN/ADMIN/MANAGER/AGENT)
-- **Payments**: Stripe (checkout sessions + webhook)
-- **Multi-tenant**: All data scoped by agencyId from JWT
-
-## Running
-
-- Backend workflow: `node server/index.js` → port 3001
-- Frontend workflow: `npm run dev` → port 5000
-- Vite proxies `/api/*` → `http://localhost:3001/api/*`
+- **Frontend:** React 18 + TypeScript, Vite build system, Tailwind CSS, React Router DOM v6
+- **Backend:** Node.js + Express.js REST API
+- **Database:** PostgreSQL via Prisma ORM (Replit built-in database)
+- **Auth:** JWT tokens + bcrypt password hashing
+- **Payments:** Stripe integration
+- **Email:** Nodemailer
 
 ## Project Structure
 
 ```
-server/
-  index.js              # Express app entry, Stripe webhook
-  lib/
-    prisma.js           # Prisma client with PrismaPg adapter
-    stripe.js           # Stripe client (optional)
-  middleware/
-    auth.js             # JWT auth middleware
-  lib/
-    email.js            # Nodemailer SMTP helper
-  routes/
-    auth.js             # Register, login, profile, change password
-    leads.js            # Lead CRUD + kanban
-    customers.js        # Customer CRUD
-    itineraries.js      # Itinerary builder
-    quotations.js       # Quotations + line items + convert to booking
-    bookings.js         # Booking management
-    invoices.js         # Invoices + Stripe payment + record payment
-    suppliers.js        # Supplier directory
-    users.js            # Team/agent management
-    reports.js          # Dashboard stats + sales report
-    automations.js      # Email/WhatsApp automation templates
-    settings.js         # Agency settings + SMTP test
-    search.js           # Global search (leads/customers/bookings/invoices)
-    notifications.js    # Dynamic alert notifications
-    uploads.js          # Multer file upload + document management
-  seed.js               # Demo data seed script
-
-src/
-  App.tsx               # Auth-gated SPA routing (all pages registered)
-  context/
-    AuthContext.tsx     # JWT auth state (exposes setUser for profile updates)
-  lib/
-    api.ts              # Axios client (proxied /api and /uploads)
-  hooks/
-    useApi.ts           # Data fetching hooks
-  components/
-    Layout.tsx          # App shell + sidebar + global search + notification bell
-    ui.tsx              # Shared UI components
-    Pagination.tsx      # Reusable pagination component
-  pages/
-    Login.tsx           # Login + register agency
-    Dashboard.tsx       # Live stats and pipeline
-    Leads.tsx           # List + kanban views + pagination
-    Customers.tsx       # Customer management + document upload/management + pagination
-    Itineraries.tsx     # Itinerary builder (day-by-day)
-    Quotations.tsx      # Quotes with line items + PDF print
-    Bookings.tsx        # Booking management
-    Invoices.tsx        # Invoices + Stripe + manual payments + PDF print
-    Suppliers.tsx       # Supplier directory
-    Team.tsx            # Agent management + commissions
-    Reports.tsx         # Analytics + agent performance
-    Automation.tsx      # Email/WhatsApp templates
-    Settings.tsx        # Agency settings (4 tabs: profile/invoice/email/locale)
-    Profile.tsx         # User profile + change password
-    Calendar.tsx        # Monthly calendar with booking/invoice/follow-up events
-
-prisma/
-  schema.prisma         # Full database schema
-
-DEPLOYMENT.md           # Debian/Windows server deployment guide
+├── prisma/               # Database schema (no migrations — uses db push)
+├── server/               # Express backend (port 3001 in dev)
+│   ├── lib/              # Prisma client, Stripe, Email utilities
+│   ├── middleware/       # Auth, validation middleware
+│   ├── routes/           # API routes (leads, customers, bookings, etc.)
+│   └── index.js          # Backend entry point
+├── src/                  # React frontend
+│   ├── components/       # Reusable UI components (Pagination, ui, Layout)
+│   ├── context/          # Auth context
+│   ├── pages/            # Page components
+│   ├── types/            # TypeScript types
+│   └── App.tsx           # Main app routing
+├── vite.config.ts        # Vite config (proxies /api → localhost:3001)
+└── package.json
 ```
 
-## Key Technical Notes
+## Development
 
-- Prisma 7.7 requires `PrismaPg` adapter (NOT schema.prisma datasource url)
-- Server must listen on `0.0.0.0` for Replit port detection
-- Stripe webhook uses raw body parser (registered BEFORE express.json)
-- All API routes require JWT auth; all DB queries filter by `agencyId`
-- bcryptjs v2 (not v3) is installed
+The workflow runs both services:
+- **Frontend:** `npm run dev` → Vite dev server on port 5000 (with `allowedHosts: true`)
+- **Backend:** `node server/index.js` → Express API on port 3001
 
-## Environment Variables Required
+Vite proxies `/api` and `/uploads` requests to the backend at `localhost:3001`.
 
-```env
-DATABASE_URL=postgresql://...    # Required
-JWT_SECRET=...                   # Required (32+ chars)
-STRIPE_SECRET_KEY=sk_live_...    # Optional (Stripe payments)
-STRIPE_WEBHOOK_SECRET=whsec_...  # Optional (Stripe webhook)
-FRONTEND_URL=https://...         # Optional (Stripe redirect URLs)
-```
+Workflow command: `node server/index.js & npm run dev`
 
-## Demo Credentials
+## Default Super Admin
 
-After running `node server/seed.js`:
-- Admin: admin@demo.com / demo123
-- Agent: sarah@demo.com / demo123
-- Agent: mike@demo.com / demo123
+- Email: `superadmin@travelcrm.com`
+- Password: `SuperAdmin@2025!`
 
-## CRM Features
+Can be overridden via `SUPER_ADMIN_EMAIL` and `SUPER_ADMIN_PASSWORD` env vars.
 
-1. **Lead Management** — Kanban + list, 6 pipeline stages, source tracking, pagination
-2. **Customer Profiles** — Passport, DOB, nationality, booking history, document uploads, pagination
-3. **Itinerary Builder** — Day-by-day builder with type (flight/hotel/activity/transfer)
-4. **Quotation System** — Line items, discount/tax, convert to booking, PDF print
-5. **Booking Management** — Status tracking, payment status
-6. **Invoice & Payments** — Stripe checkout + manual payment recording + PDF print
-7. **Supplier Directory** — Hotels, airlines, tour operators, rating system
-8. **Team & Agents** — Role management, commission rates
-9. **Reports & Analytics** — Pipeline, revenue, agent performance
-10. **Automation** — Email/WhatsApp templates with trigger system
-11. **Global Search** — Debounced search across leads, customers, bookings, invoices
-12. **Notification Bell** — Real-time alerts (overdue invoices, expiring passports, follow-ups)
-13. **Calendar View** — Monthly grid with departures, returns, invoice due dates, follow-ups
-14. **Settings** — 4-tab agency settings (profile, invoice/quotation, SMTP email, localization)
-15. **User Profile** — Edit personal info + change password
-16. **File Uploads** — Per-customer document management (PDF, images, office docs)
+## Production Deployment
+
+- **Target:** Autoscale
+- **Build:** `npm run build` (TypeScript compile + Vite bundle + Prisma generate)
+- **Run:** `SERVE_FRONTEND=true node server/index.js` (backend serves built frontend)
+
+## Environment Variables
+
+- `DATABASE_URL` — PostgreSQL connection string (set by Replit)
+- `JWT_SECRET` — Secret for JWT token signing
+- `STRIPE_SECRET_KEY` — Stripe API key (optional)
+- `STRIPE_WEBHOOK_SECRET` — Stripe webhook secret (optional)
+- `SMTP_*` — Email configuration (optional)
+- `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` — Override default super admin credentials
+
+## Key Features
+
+- Multi-tenant: Super Admin manages agencies; each agency has isolated data
+- Lead management with status tracking (List + Kanban views), assignedTo agent + followUpDate fields, overdue follow-up highlighting
+- Lead Activity Notes slide-over panel — log calls, emails, WhatsApp, meetings per lead
+- Lead → Customer conversion button (BOOKED leads without a customer record)
+- WhatsApp click-to-chat button on every lead/customer/supplier with a phone number
+- Customer Detail slide-over panel — bookings, invoices, linked leads, spend stats, passport info
+- Itinerary builder with print/PDF export button (opens print dialog)
+- Quotation builder with linked Lead selector; print/PDF export
+- Invoice editing — edit items, discount, tax, due date on existing invoices (PUT /invoices/:id with items array)
+- Booking and invoice system with Stripe payment support
+- Supplier directory with clickable email/phone/WhatsApp/website links; paginated grid view
+- Commission tracking per agent
+- Automated notifications/email triggers
+- Dashboard with passport expiry alerts, Today's Agenda, Quick Actions, Monthly Revenue chart, Recent Bookings
+- Reports with CSV export for bookings and leads
+- Global search, notification bell, calendar (departures/returns/follow-ups/invoices/passport expiry)
+- Team management with activate/deactivate user toggle
+
+## Backend API (v1.1 + v1.2 + v1.3)
+
+- `GET /api/reports/today` — Today's departures, follow-ups, overdue invoices, recent bookings, expiring passports (next 90 days)
+- `GET /api/reports/monthly` — Last 12 months revenue/bookings/leads trend
+- `GET /api/reports/export/bookings` — CSV export of bookings
+- `GET /api/reports/export/leads` — CSV export of leads
+- `POST /api/leads/:id/activities` — Add activity note to a lead (call, email, WhatsApp, meeting)
+- `DELETE /api/bookings/:id` — Delete a booking (admin/manager only)
+- `GET /api/invoices?search=` — Search invoices by invoice number, customer name, or email
+- `PUT /api/invoices/:id` — Full invoice edit (items array → delete+recreate, recalculate totals)
+- `POST /api/customers/from-lead/:leadId` — Convert lead to customer, link customerId, set lead status BOOKED
+- `GET /api/customers/:id` — Customer detail with bookings, invoices, leads included
+
+## Important Notes
+
+- `Sidebar.tsx` is a dead file — actual sidebar is rendered inline in `Layout.tsx`
+- Quotations have a "Convert to Booking" feature via `POST /api/quotations/:id/convert`
+- Bookings page has proper pagination (15 per page) with departure countdown in days
+- Passport expiry widget on dashboard shows customers with passports expiring in next 90 days (urgent < 30 days shown in red)
+- Calendar shows passport expiry events (red = urgent <30 days, amber = within 1 year)

@@ -88,4 +88,38 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+// Convert lead to customer
+router.post('/from-lead/:leadId', async (req, res) => {
+  try {
+    const lead = await prisma.lead.findFirst({
+      where: { id: req.params.leadId, agencyId: req.agencyId }
+    })
+    if (!lead) return res.status(404).json({ error: 'Lead not found' })
+    if (lead.customerId) {
+      const existing = await prisma.customer.findUnique({ where: { id: lead.customerId } })
+      if (existing) return res.status(400).json({ error: 'Lead already converted to customer', customerId: existing.id })
+    }
+
+    const customer = await prisma.customer.create({
+      data: {
+        agencyId: req.agencyId,
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        email: lead.email || undefined,
+        phone: lead.phone || undefined,
+        notes: lead.notes || undefined,
+      }
+    })
+
+    await prisma.lead.update({
+      where: { id: lead.id },
+      data: { customerId: customer.id, status: 'BOOKED' }
+    })
+
+    res.status(201).json(customer)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

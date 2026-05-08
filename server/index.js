@@ -16,30 +16,27 @@ async function seedSuperAdmin() {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const { default: prismaClient } = await import('./lib/prisma.js')
-      const email = process.env.SUPER_ADMIN_EMAIL || 'superadmin@travelcrm.com'
-      const password = process.env.SUPER_ADMIN_PASSWORD || 'SuperAdmin@2025!'
-      const existing = await prismaClient.superAdmin.findUnique({ where: { email } })
-      if (!existing) {
-        const hashed = await bcrypt.hash(password, 12)
-        await prismaClient.superAdmin.create({
-          data: { email, password: hashed, name: 'Platform Admin' }
-        })
-        console.log(`✅ Super admin created: ${email}`)
-      } else {
-        console.log(`Super admin ready: ${email}`)
-      }
+      const email = process.env.SUPER_ADMIN_EMAIL || 'mnrnauman@gmail.com'
+      const password = process.env.SUPER_ADMIN_PASSWORD || '131019sunday'
+      const hashed = await bcrypt.hash(password, 12)
+      // Upsert: always create or update so credentials stay in sync with env vars
+      await prismaClient.superAdmin.upsert({
+        where: { email },
+        update: { password: hashed, name: 'Platform Admin' },
+        create: { email, password: hashed, name: 'Platform Admin' }
+      })
+      console.log(`✅ Super admin ready: ${email}`)
       return
     } catch (err) {
       console.error(`Seed attempt ${attempt}/${maxAttempts} failed: ${err.message}`)
       if (attempt < maxAttempts) await new Promise(r => setTimeout(r, 3000 * attempt))
     }
   }
-  console.log('Seed skipped after retries — super admin may already exist')
+  console.log('Seed skipped after retries')
 }
 
-if (process.env.NODE_ENV === 'production') {
-  seedSuperAdmin().catch(() => {})
-}
+// Run on every startup to keep credentials in sync
+seedSuperAdmin().catch(() => {})
 
 import prisma from './lib/prisma.js'
 import authRoutes from './routes/auth.js'

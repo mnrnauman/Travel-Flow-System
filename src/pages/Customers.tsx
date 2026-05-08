@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { Plus, Search, Users, Upload, FileText, Trash2, Download, FolderOpen } from 'lucide-react'
+import { Plus, Search, Users, Trash2, FolderOpen, MessageCircle, Eye, X, Download, FileText, Upload, CreditCard, Briefcase } from 'lucide-react'
 import api from '../lib/api'
 import Pagination from '../components/Pagination'
 
@@ -12,12 +12,164 @@ const EMPTY_FORM = {
 
 const LIMIT = 15
 
+function CustomerDetailPanel({ customer, onClose }: { customer: any; onClose: () => void }) {
+  const { data: detail, loading } = useApi<any>(`/customers/${customer.id}`, [customer.id])
+
+  const totalSpend = (detail?.invoices || []).reduce((s: number, inv: any) => s + Number(inv.amountPaid || 0), 0)
+  const totalOwed = (detail?.invoices || []).reduce((s: number, inv: any) => s + Number(inv.amountDue || 0), 0)
+  const currency = detail?.invoices?.[0]?.currency || 'USD'
+
+  const passportExpiry = customer.passportExpiry ? new Date(customer.passportExpiry) : null
+  const today = new Date()
+  const daysToExpiry = passportExpiry ? Math.ceil((passportExpiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)) : null
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end'
+    }} onClick={onClose}>
+      <div style={{
+        width: 480, height: '100vh', background: 'white', boxShadow: '-4px 0 30px rgba(0,0,0,0.15)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden'
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--gray-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--primary)', color: 'white' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>{customer.firstName} {customer.lastName}</div>
+            <div style={{ fontSize: 12, opacity: 0.85 }}>{customer.email || customer.phone || 'No contact info'}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', cursor: 'pointer', color: 'white', padding: 6, borderRadius: 6 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--gray-200)' }}>
+          {[
+            { label: 'Bookings', value: loading ? '…' : (detail?.bookings?.length ?? 0), icon: '✈️' },
+            { label: 'Paid', value: loading ? '…' : `${currency} ${totalSpend.toLocaleString()}`, icon: '💰' },
+            { label: 'Outstanding', value: loading ? '…' : `${currency} ${totalOwed.toLocaleString()}`, icon: '📋' },
+          ].map(s => (
+            <div key={s.label} style={{ background: 'white', padding: '10px 14px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18 }}>{s.icon}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{s.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--gray-500)' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40 }}><Spinner /></div>
+          ) : (
+            <>
+              {/* Customer Info */}
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--gray-100)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', marginBottom: 10, letterSpacing: '0.05em' }}>Customer Details</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {customer.nationality && <div style={{ fontSize: 12 }}><span style={{ color: 'var(--gray-400)' }}>Nationality: </span>{customer.nationality}</div>}
+                  {customer.dateOfBirth && <div style={{ fontSize: 12 }}><span style={{ color: 'var(--gray-400)' }}>DOB: </span>{customer.dateOfBirth?.slice(0, 10)}</div>}
+                  {customer.passportNumber && <div style={{ fontSize: 12 }}><span style={{ color: 'var(--gray-400)' }}>Passport: </span>{customer.passportNumber}</div>}
+                  {passportExpiry && (
+                    <div style={{ fontSize: 12 }}>
+                      <span style={{ color: 'var(--gray-400)' }}>Expiry: </span>
+                      <span style={{ color: daysToExpiry !== null && daysToExpiry < 90 ? 'var(--danger)' : 'inherit', fontWeight: daysToExpiry !== null && daysToExpiry < 90 ? 600 : 400 }}>
+                        {passportExpiry.toLocaleDateString()}
+                        {daysToExpiry !== null && daysToExpiry < 90 && ` (${daysToExpiry}d)`}
+                      </span>
+                    </div>
+                  )}
+                  {customer.phone && (
+                    <div style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <a href={`tel:${customer.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{customer.phone}</a>
+                      <a href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ color: '#25d366', display: 'flex' }}><MessageCircle size={12} /></a>
+                    </div>
+                  )}
+                  {customer.address && <div style={{ fontSize: 12, gridColumn: 'span 2' }}><span style={{ color: 'var(--gray-400)' }}>Address: </span>{customer.address}</div>}
+                </div>
+              </div>
+
+              {/* Bookings */}
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--gray-100)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', marginBottom: 10, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Briefcase size={11} /> Bookings ({(detail?.bookings || []).length})
+                </div>
+                {(detail?.bookings || []).length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--gray-400)', padding: '8px 0' }}>No bookings yet</div>
+                ) : (detail?.bookings || []).map((b: any) => (
+                  <div key={b.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--gray-50)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}>{b.bookingNumber}</div>
+                      <div style={{ fontSize: 12, color: 'var(--gray-600)' }}>{b.title}</div>
+                      {b.departureDate && <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Dep: {new Date(b.departureDate).toLocaleDateString()}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{b.currency} {Number(b.totalAmount).toLocaleString()}</div>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                        background: b.status === 'CONFIRMED' ? '#d1fae5' : b.status === 'CANCELLED' ? '#fee2e2' : '#dbeafe',
+                        color: b.status === 'CONFIRMED' ? '#065f46' : b.status === 'CANCELLED' ? '#991b1b' : '#1d4ed8'
+                      }}>{b.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Invoices */}
+              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--gray-100)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', marginBottom: 10, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CreditCard size={11} /> Invoices ({(detail?.invoices || []).length})
+                </div>
+                {(detail?.invoices || []).length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--gray-400)', padding: '8px 0' }}>No invoices yet</div>
+                ) : (detail?.invoices || []).map((inv: any) => (
+                  <div key={inv.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--gray-50)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)' }}>{inv.invoiceNumber}</div>
+                      {inv.dueDate && <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>Due: {new Date(inv.dueDate).toLocaleDateString()}</div>}
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600 }}>{inv.currency} {Number(inv.total).toLocaleString()}</div>
+                      {Number(inv.amountDue) > 0 && <div style={{ fontSize: 11, color: 'var(--danger)' }}>Due: {inv.currency} {Number(inv.amountDue).toLocaleString()}</div>}
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
+                        background: inv.status === 'PAID' ? '#d1fae5' : inv.status === 'OVERDUE' ? '#fee2e2' : '#fef3c7',
+                        color: inv.status === 'PAID' ? '#065f46' : inv.status === 'OVERDUE' ? '#991b1b' : '#92400e'
+                      }}>{inv.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Linked Leads */}
+              {(detail?.leads || []).length > 0 && (
+                <div style={{ padding: '14px 20px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-400)', textTransform: 'uppercase', marginBottom: 10, letterSpacing: '0.05em' }}>Linked Leads</div>
+                  {(detail?.leads || []).map((lead: any) => (
+                    <div key={lead.id} style={{ padding: '6px 0', fontSize: 12 }}>
+                      <span style={{ fontWeight: 500 }}>{lead.destination || 'No destination'}</span>
+                      <span style={{ color: 'var(--gray-400)', marginLeft: 8 }}>{lead.source?.replace('_', ' ')} · {lead.status}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Customers() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [docsModal, setDocsModal] = useState<any>(null)
+  const [detailCustomer, setDetailCustomer] = useState<any>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const { submit, submitting, error: submitError } = useSubmit()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -132,9 +284,11 @@ export default function Customers() {
                 <tr key={c.id}>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div className="avatar">{getInitials(c.firstName, c.lastName)}</div>
+                      <div className="avatar" style={{ cursor: 'pointer' }} onClick={() => setDetailCustomer(c)}>{getInitials(c.firstName, c.lastName)}</div>
                       <div>
-                        <div style={{ fontWeight: 500 }}>{c.firstName} {c.lastName}</div>
+                        <div style={{ fontWeight: 500, cursor: 'pointer', color: 'var(--primary)' }} onClick={() => setDetailCustomer(c)}>
+                          {c.firstName} {c.lastName}
+                        </div>
                         <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>
                           {c.dateOfBirth ? `DOB: ${c.dateOfBirth}` : ''}
                         </div>
@@ -143,7 +297,18 @@ export default function Customers() {
                   </td>
                   <td>
                     <div style={{ fontSize: 13 }}>{c.email || '—'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{c.phone}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{c.phone || '—'}</span>
+                      {c.phone && (
+                        <a href={`https://wa.me/${c.phone.replace(/[^0-9]/g, '')}`}
+                          target="_blank" rel="noopener noreferrer"
+                          title="WhatsApp"
+                          style={{ color: '#25d366', lineHeight: 1, display: 'flex' }}
+                          onClick={e => e.stopPropagation()}>
+                          <MessageCircle size={13} />
+                        </a>
+                      )}
+                    </div>
                   </td>
                   <td>{c.nationality || '—'}</td>
                   <td>
@@ -161,6 +326,9 @@ export default function Customers() {
                   <td><span className="badge badge-blue">{c._count?.bookings || 0}</span></td>
                   <td>
                     <div className="flex gap-2">
+                      <button className="btn btn-outline btn-sm" onClick={() => setDetailCustomer(c)} title="View full profile">
+                        <Eye size={12} />
+                      </button>
                       <button className="btn btn-outline btn-sm" onClick={() => openEdit(c)}>Edit</button>
                       <button className="btn btn-outline btn-sm" onClick={() => setDocsModal(c)} title="Documents">
                         <FolderOpen size={12} />
@@ -178,6 +346,11 @@ export default function Customers() {
           <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
         </div>
       </div>
+
+      {/* Customer Detail Slide-over */}
+      {detailCustomer && (
+        <CustomerDetailPanel customer={detailCustomer} onClose={() => setDetailCustomer(null)} />
+      )}
 
       {/* Edit/Add Customer Modal */}
       {showModal && (
@@ -251,7 +424,6 @@ export default function Customers() {
               <button className="btn-icon" onClick={() => setDocsModal(null)}>✕</button>
             </div>
             <div className="modal-body">
-              {/* Upload area */}
               <div style={{ background: 'var(--gray-50)', borderRadius: 10, padding: 16, marginBottom: 16, border: '1px dashed var(--gray-300)' }}>
                 <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Upload size={14} /> Upload Document
@@ -272,7 +444,6 @@ export default function Customers() {
                 </div>
               </div>
 
-              {/* Document list */}
               {(docs || []).length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--gray-400)' }}>
                   <FileText size={32} style={{ margin: '0 auto 8px', opacity: 0.3 }} />

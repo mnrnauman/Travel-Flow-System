@@ -2,16 +2,32 @@ import { useState } from 'react'
 import { useApi } from '../hooks/useApi'
 import { Spinner, ErrorBox } from '../components/ui'
 import { BarChart3, Download, TrendingUp, Users, DollarSign, Target } from 'lucide-react'
-import api from '../lib/api'
+
+const BASE = import.meta.env.VITE_API_URL || '/api'
+
+function downloadCSV(path: string, params: Record<string, string> = {}) {
+  const q = Object.entries(params).filter(([, v]) => v).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
+  const url = `${BASE}${path}${q ? '?' + q : ''}`
+  const token = localStorage.getItem('crm_token') || sessionStorage.getItem('crm_token') || ''
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = path.includes('bookings') ? 'bookings.csv' : 'leads.csv'
+      a.click()
+    })
+}
 
 export default function Reports() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const { data: stats, loading, error } = useApi<any>('/reports/dashboard')
-  const { data: salesData, loading: salesLoading } = useApi<any>(
+  const { data: salesData } = useApi<any>(
     `/reports/sales?${from ? `from=${from}&` : ''}${to ? `to=${to}` : ''}`,
     [from, to]
   )
+  const { data: monthly } = useApi<any>('/reports/monthly')
 
   if (loading) return <Spinner />
   if (error) return <ErrorBox message={error} />
@@ -19,11 +35,15 @@ export default function Reports() {
 
   const { leads, customers, bookings, revenue } = stats
 
+  const maxRevenue = monthly?.months
+    ? Math.max(...monthly.months.map((m: any) => m.revenue), 1)
+    : 1
+
   return (
     <div>
-      {/* Filters */}
+      {/* Filters + Export */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-body" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <div className="card-body" style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">From Date</label>
             <input type="date" className="form-input" value={from} onChange={e => setFrom(e.target.value)} />
@@ -32,10 +52,20 @@ export default function Reports() {
             <label className="form-label">To Date</label>
             <input type="date" className="form-input" value={to} onChange={e => setTo(e.target.value)} />
           </div>
-          <button className="btn btn-outline" style={{ marginTop: 20 }}
-            onClick={() => { setFrom(''); setTo('') }}>
+          <button className="btn btn-outline" onClick={() => { setFrom(''); setTo('') }}>
             Clear
           </button>
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+              onClick={() => downloadCSV('/reports/export/bookings', { from, to })}>
+              <Download size={13} /> Export Bookings CSV
+            </button>
+            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+              onClick={() => downloadCSV('/reports/export/leads', { from, to })}>
+              <Download size={13} /> Export Leads CSV
+            </button>
+          </div>
         </div>
       </div>
 
@@ -74,6 +104,47 @@ export default function Reports() {
           </div>
         </div>
       </div>
+
+      {/* Monthly Revenue Chart */}
+      {monthly?.months && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <BarChart3 size={15} color="var(--primary)" />
+              Revenue Trend — Last 12 Months
+            </span>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+                <div style={{ width: 10, height: 10, background: '#2563eb', borderRadius: 2 }} /> Invoiced
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: 'var(--gray-500)' }}>
+                <div style={{ width: 10, height: 10, background: '#10b981', borderRadius: 2 }} /> Collected
+              </div>
+            </div>
+          </div>
+          <div style={{ padding: '8px 16px 16px', overflowX: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, minWidth: 600, height: 140 }}>
+              {monthly.months.map((m: any, i: number) => {
+                const revH = maxRevenue > 0 ? Math.max(2, (m.revenue / maxRevenue) * 110) : 2
+                const colH = maxRevenue > 0 ? Math.max(0, (m.collected / maxRevenue) * 110) : 0
+                return (
+                  <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <div style={{ fontSize: 9, color: 'var(--gray-400)', fontWeight: 600, marginBottom: 2, whiteSpace: 'nowrap' }}>
+                      {m.revenue > 0 ? `$${(m.revenue / 1000).toFixed(0)}k` : ''}
+                    </div>
+                    <div style={{ width: '100%', display: 'flex', gap: 2, alignItems: 'flex-end', height: 110 }}>
+                      <div title={`Invoiced: $${m.revenue.toLocaleString()}`} style={{ flex: 1, height: `${revH}px`, background: '#2563eb', borderRadius: '3px 3px 0 0', minHeight: 2, opacity: 0.8, cursor: 'default' }} />
+                      <div title={`Collected: $${m.collected.toLocaleString()}`} style={{ flex: 1, height: `${colH}px`, background: '#10b981', borderRadius: '3px 3px 0 0', minHeight: 0, opacity: 0.8, cursor: 'default' }} />
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--gray-500)', whiteSpace: 'nowrap', marginTop: 4 }}>{m.month}</div>
+                    <div style={{ fontSize: 9, color: 'var(--gray-400)' }}>{m.bookings > 0 ? `${m.bookings} bk` : ''}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid-2" style={{ gap: 16 }}>
         {/* Lead by Status */}
@@ -187,11 +258,15 @@ export default function Reports() {
         </div>
       )}
 
-      {/* Recent Bookings */}
+      {/* Booking Sales Report */}
       {salesData?.bookings?.length > 0 && (
         <div className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
             <span className="card-title">Booking Sales Report</span>
+            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
+              onClick={() => downloadCSV('/reports/export/bookings', { from, to })}>
+              <Download size={12} /> Export CSV
+            </button>
           </div>
           <div className="table-wrapper">
             <table>

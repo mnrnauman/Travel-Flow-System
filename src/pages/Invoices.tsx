@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { Plus, Search, DollarSign, CreditCard, Trash2, PlusCircle, Printer } from 'lucide-react'
+import { Plus, Search, DollarSign, CreditCard, Trash2, PlusCircle, Printer, Pencil } from 'lucide-react'
 import api from '../lib/api'
 
 function printInvoice(inv: any) {
@@ -82,13 +82,19 @@ export default function Invoices() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [showModal, setShowModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null)
+  const [editInvoice, setEditInvoice] = useState<any>(null)
   const [form, setForm] = useState({
     customerId: '', bookingId: '', currency: 'USD',
     dueDate: '', discount: '0', tax: '0', notes: ''
   })
+  const [editForm, setEditForm] = useState({
+    currency: 'USD', dueDate: '', discount: '0', tax: '0', notes: ''
+  })
   const [items, setItems] = useState<InvoiceItem[]>([newItem()])
+  const [editItems, setEditItems] = useState<InvoiceItem[]>([newItem()])
   const [paymentForm, setPaymentForm] = useState({ amount: '', method: 'BANK_TRANSFER', reference: '', notes: '' })
   const { submit, submitting, error: submitError } = useSubmit()
 
@@ -100,18 +106,49 @@ export default function Invoices() {
   const bookings = bookingsData?.bookings || []
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
+  const setE = (k: string, v: string) => setEditForm(f => ({ ...f, [k]: v }))
   const setP = (k: string, v: string) => setPaymentForm(f => ({ ...f, [k]: v }))
 
   const subtotal = items.reduce((s, i) => s + (i.quantity * i.unitPrice), 0)
   const total = subtotal - Number(form.discount || 0) + Number(form.tax || 0)
+  const editSubtotal = editItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0)
+  const editTotal = editSubtotal - Number(editForm.discount || 0) + Number(editForm.tax || 0)
 
   const updateItem = (idx: number, k: string, v: any) => {
     setItems(items.map((item, i) => i === idx ? { ...item, [k]: v } : item))
+  }
+  const updateEditItem = (idx: number, k: string, v: any) => {
+    setEditItems(editItems.map((item, i) => i === idx ? { ...item, [k]: v } : item))
   }
 
   const handleSave = async () => {
     const res = await submit(() => api.post('/invoices', { ...form, items }))
     if (res) { setShowModal(false); refetch() }
+  }
+
+  const openEdit = (inv: any) => {
+    setEditInvoice(inv)
+    setEditForm({
+      currency: inv.currency || 'USD',
+      dueDate: inv.dueDate?.slice(0, 10) || '',
+      discount: String(inv.discount || 0),
+      tax: String(inv.tax || 0),
+      notes: inv.notes || ''
+    })
+    setEditItems((inv.items || []).map((it: any) => ({
+      description: it.description,
+      quantity: Number(it.quantity),
+      unitPrice: Number(it.unitPrice)
+    })))
+    setShowEditModal(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!editInvoice) return
+    const res = await submit(() =>
+      api.put(`/invoices/${editInvoice.id}`, { ...editForm, items: editItems })
+    )
+    if (res) { setShowEditModal(false); refetch() }
   }
 
   const handleStatusChange = async (id: string, status: string) => {
@@ -214,6 +251,9 @@ export default function Invoices() {
                       <button className="btn btn-outline btn-sm" onClick={() => printInvoice(inv)} title="Print Invoice">
                         <Printer size={12} />
                       </button>
+                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(inv)} title="Edit Invoice">
+                        <Pencil size={12} />
+                      </button>
                       {inv.amountDue > 0 && (
                         <>
                           <button className="btn btn-outline btn-sm" onClick={() => {
@@ -277,7 +317,6 @@ export default function Invoices() {
                 </div>
               </div>
 
-              {/* Line Items */}
               <div style={{ marginBottom: 12 }}>
                 <div className="flex justify-between items-center" style={{ marginBottom: 8 }}>
                   <label className="form-label" style={{ margin: 0 }}>Items</label>
@@ -296,9 +335,9 @@ export default function Invoices() {
                       onChange={e => updateItem(idx, 'quantity', Number(e.target.value))} />
                     <input type="number" className="form-input" placeholder="Unit Price" value={item.unitPrice}
                       onChange={e => updateItem(idx, 'unitPrice', Number(e.target.value))} />
-                    <span style={{ fontWeight: 500, fontSize: 13, textAlign: 'right' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, textAlign: 'right' }}>
                       {(item.quantity * item.unitPrice).toLocaleString()}
-                    </span>
+                    </div>
                     <button onClick={() => setItems(items.filter((_, i) => i !== idx))}
                       style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
                       <Trash2 size={14} />
@@ -307,7 +346,6 @@ export default function Invoices() {
                 ))}
               </div>
 
-              {/* Totals */}
               <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: 12 }}>
                 <div className="flex justify-between" style={{ marginBottom: 6 }}>
                   <span style={{ fontSize: 13 }}>Subtotal</span>
@@ -315,20 +353,19 @@ export default function Invoices() {
                 </div>
                 <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
                   <span style={{ fontSize: 13 }}>Discount</span>
-                  <input type="number" className="form-input" value={form.discount}
-                    onChange={e => set('discount', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
+                  <input type="number" className="form-input" value={form.discount} onChange={e => set('discount', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
                 </div>
                 <div className="flex justify-between items-center" style={{ marginBottom: 8 }}>
                   <span style={{ fontSize: 13 }}>Tax</span>
-                  <input type="number" className="form-input" value={form.tax}
-                    onChange={e => set('tax', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
+                  <input type="number" className="form-input" value={form.tax} onChange={e => set('tax', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
                 </div>
                 <div className="flex justify-between" style={{ paddingTop: 8, borderTop: '1px solid var(--gray-200)' }}>
                   <span style={{ fontWeight: 700 }}>Total</span>
                   <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{form.currency} {total.toLocaleString()}</span>
                 </div>
               </div>
-              <div className="form-group" style={{ marginTop: 10 }}>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
                 <label className="form-label">Notes</label>
                 <textarea className="form-input" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
               </div>
@@ -343,9 +380,99 @@ export default function Invoices() {
         </div>
       )}
 
-      {/* Record Payment Modal */}
-      {showPaymentModal && (
-        <Modal title={`Record Payment — ${selectedInvoice?.invoiceNumber}`} onClose={() => setShowPaymentModal(false)}
+      {/* Edit Invoice Modal */}
+      {showEditModal && editInvoice && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowEditModal(false)}>
+          <div className="modal" style={{ maxWidth: 640 }}>
+            <div className="modal-header">
+              <span className="modal-title">Edit Invoice — {editInvoice.invoiceNumber}</span>
+              <button className="btn-icon" onClick={() => setShowEditModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              {submitError && <ErrorBox message={submitError} />}
+              <div style={{ padding: '8px 12px', background: '#eff6ff', borderRadius: 8, marginBottom: 12, fontSize: 12, color: '#1d4ed8' }}>
+                Customer: <strong>{editInvoice.customer?.firstName} {editInvoice.customer?.lastName}</strong>
+                {editInvoice.amountPaid > 0 && <span style={{ marginLeft: 12, color: '#059669' }}>Amount already paid: {editInvoice.currency} {Number(editInvoice.amountPaid).toLocaleString()}</span>}
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Currency</label>
+                  <select className="form-select" value={editForm.currency} onChange={e => setE('currency', e.target.value)}>
+                    {['USD','EUR','GBP','AED','SAR'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Due Date</label>
+                  <input type="date" className="form-input" value={editForm.dueDate} onChange={e => setE('dueDate', e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <div className="flex justify-between items-center" style={{ marginBottom: 8 }}>
+                  <label className="form-label" style={{ margin: 0 }}>Items</label>
+                  <button className="btn btn-outline btn-sm" onClick={() => setEditItems([...editItems, newItem()])}>
+                    <PlusCircle size={13} /> Add
+                  </button>
+                </div>
+                {editItems.map((item, idx) => (
+                  <div key={idx} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 80px 120px 80px auto',
+                    gap: 6, marginBottom: 6, alignItems: 'center'
+                  }}>
+                    <input className="form-input" placeholder="Description" value={item.description}
+                      onChange={e => updateEditItem(idx, 'description', e.target.value)} />
+                    <input type="number" className="form-input" placeholder="Qty" value={item.quantity}
+                      onChange={e => updateEditItem(idx, 'quantity', Number(e.target.value))} />
+                    <input type="number" className="form-input" placeholder="Unit Price" value={item.unitPrice}
+                      onChange={e => updateEditItem(idx, 'unitPrice', Number(e.target.value))} />
+                    <div style={{ fontWeight: 600, fontSize: 13, textAlign: 'right' }}>
+                      {(item.quantity * item.unitPrice).toLocaleString()}
+                    </div>
+                    <button onClick={() => setEditItems(editItems.filter((_, i) => i !== idx))}
+                      style={{ color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ background: 'var(--gray-50)', borderRadius: 8, padding: 12 }}>
+                <div className="flex justify-between" style={{ marginBottom: 6 }}>
+                  <span style={{ fontSize: 13 }}>Subtotal</span>
+                  <span>{editForm.currency} {editSubtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center" style={{ marginBottom: 6 }}>
+                  <span style={{ fontSize: 13 }}>Discount</span>
+                  <input type="number" className="form-input" value={editForm.discount} onChange={e => setE('discount', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
+                </div>
+                <div className="flex justify-between items-center" style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 13 }}>Tax</span>
+                  <input type="number" className="form-input" value={editForm.tax} onChange={e => setE('tax', e.target.value)} style={{ width: 100, textAlign: 'right' }} />
+                </div>
+                <div className="flex justify-between" style={{ paddingTop: 8, borderTop: '1px solid var(--gray-200)' }}>
+                  <span style={{ fontWeight: 700 }}>New Total</span>
+                  <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{editForm.currency} {editTotal.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 12 }}>
+                <label className="form-label">Notes</label>
+                <textarea className="form-input" rows={2} value={editForm.notes} onChange={e => setE('notes', e.target.value)} />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowEditModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleEditSave} disabled={submitting}>
+                {submitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedInvoice && (
+        <Modal title={`Record Payment — ${selectedInvoice.invoiceNumber}`} onClose={() => setShowPaymentModal(false)}
           footer={
             <>
               <button className="btn btn-outline" onClick={() => setShowPaymentModal(false)}>Cancel</button>
@@ -355,30 +482,28 @@ export default function Invoices() {
             </>
           }>
           {submitError && <ErrorBox message={submitError} />}
-          <p style={{ fontSize: 13, color: 'var(--gray-600)', marginBottom: 16 }}>
-            Amount Due: <strong>{selectedInvoice?.currency} {Number(selectedInvoice?.amountDue).toLocaleString()}</strong>
-          </p>
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Amount</label>
-              <input type="number" className="form-input" value={paymentForm.amount}
-                onChange={e => setP('amount', e.target.value)} />
+              <label className="form-label">Amount *</label>
+              <input type="number" className="form-input" value={paymentForm.amount} onChange={e => setP('amount', e.target.value)} />
             </div>
             <div className="form-group">
               <label className="form-label">Method</label>
               <select className="form-select" value={paymentForm.method} onChange={e => setP('method', e.target.value)}>
-                {['CASH','BANK_TRANSFER','CREDIT_CARD','STRIPE','PAYPAL','CHECK','OTHER'].map(m =>
-                  <option key={m} value={m}>{m.replace('_',' ')}</option>)}
+                {['BANK_TRANSFER','CASH','CHEQUE','CARD','STRIPE','OTHER'].map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
               </select>
             </div>
           </div>
           <div className="form-group">
             <label className="form-label">Reference</label>
-            <input className="form-input" value={paymentForm.reference} onChange={e => setP('reference', e.target.value)} placeholder="Transaction ID / Check number" />
+            <input className="form-input" value={paymentForm.reference} onChange={e => setP('reference', e.target.value)} placeholder="Transaction ID, cheque number, etc." />
           </div>
           <div className="form-group">
             <label className="form-label">Notes</label>
             <textarea className="form-input" rows={2} value={paymentForm.notes} onChange={e => setP('notes', e.target.value)} />
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--gray-500)', padding: '8px 0' }}>
+            Balance due: <strong>{selectedInvoice.currency} {Number(selectedInvoice.amountDue).toLocaleString()}</strong>
           </div>
         </Modal>
       )}

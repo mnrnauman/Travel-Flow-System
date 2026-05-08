@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { BookOpen, Search, Plus, Eye, Pencil } from 'lucide-react'
+import { BookOpen, Search, Plus, Pencil, Trash2 } from 'lucide-react'
 import api from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import Pagination from '../components/Pagination'
 
 const statusColor: Record<string, string> = {
   DRAFT: 'badge-gray', CONFIRMED: 'badge-green', IN_PROGRESS: 'badge-amber',
@@ -17,11 +18,18 @@ const paymentColor: Record<string, string> = {
 const STATUSES = ['DRAFT', 'CONFIRMED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED']
 const PAYMENT_STATUSES = ['UNPAID', 'PARTIAL', 'PAID', 'OVERDUE']
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'PKR', 'INR', 'CAD', 'AUD']
+const LIMIT = 15
 
 const emptyForm = {
   customerId: '', title: '', destination: '', departureDate: '', returnDate: '',
   numTravelers: '1', totalAmount: '', paidAmount: '0', currency: 'USD',
   status: 'CONFIRMED', paymentStatus: 'UNPAID', agentId: '', notes: ''
+}
+
+function departureDays(dateStr: string | null) {
+  if (!dateStr) return null
+  const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000)
+  return diff
 }
 
 export default function Bookings() {
@@ -31,18 +39,19 @@ export default function Bookings() {
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterPayment, setFilterPayment] = useState('all')
+  const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
-  const [viewItem, setViewItem] = useState<any>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const { submit, submitting, error: submitError } = useSubmit()
 
-  const url = `/bookings?limit=100${filterStatus !== 'all' ? `&status=${filterStatus}` : ''}${filterPayment !== 'all' ? `&paymentStatus=${filterPayment}` : ''}${search ? `&search=${encodeURIComponent(search)}` : ''}`
-  const { data, loading, error, refetch } = useApi<any>(url, [search, filterStatus, filterPayment])
+  const url = `/bookings?limit=${LIMIT}&page=${page}${filterStatus !== 'all' ? `&status=${filterStatus}` : ''}${filterPayment !== 'all' ? `&paymentStatus=${filterPayment}` : ''}${search ? `&search=${encodeURIComponent(search)}` : ''}`
+  const { data, loading, error, refetch } = useApi<any>(url, [search, filterStatus, filterPayment, page])
   const { data: customers } = useApi<any>('/customers?limit=200')
   const { data: usersData } = useApi<any[]>('/users')
 
   const bookings = data?.bookings || []
+  const total = data?.total || 0
   const customerList = customers?.customers || []
   const agents = (usersData || []).filter((u: any) => ['AGENT', 'MANAGER', 'ADMIN'].includes(u.role))
 
@@ -94,6 +103,12 @@ export default function Bookings() {
     refetch()
   }
 
+  const handleDelete = async (b: any) => {
+    if (!confirm(`Delete booking ${b.bookingNumber}? This cannot be undone.`)) return
+    await api.delete(`/bookings/${b.id}`)
+    refetch()
+  }
+
   if (loading) return <Spinner />
   if (error) return <ErrorBox message={error} />
 
@@ -104,13 +119,13 @@ export default function Bookings() {
           <div className="search-bar">
             <Search size={15} className="search-icon" />
             <input className="form-input" placeholder="Search bookings..." value={search}
-              onChange={e => setSearch(e.target.value)} style={{ width: 200 }} />
+              onChange={e => { setSearch(e.target.value); setPage(1) }} style={{ width: 200 }} />
           </div>
-          <select className="form-select" value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: 140 }}>
+          <select className="form-select" value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }} style={{ width: 140 }}>
             <option value="all">All Status</option>
             {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
           </select>
-          <select className="form-select" value={filterPayment} onChange={e => setFilterPayment(e.target.value)} style={{ width: 140 }}>
+          <select className="form-select" value={filterPayment} onChange={e => { setFilterPayment(e.target.value); setPage(1) }} style={{ width: 140 }}>
             <option value="all">All Payments</option>
             {PAYMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
@@ -123,11 +138,11 @@ export default function Bookings() {
       {/* Summary Stats */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { label: 'Total', value: bookings.length, color: '#64748b' },
+          { label: 'Total', value: total, color: '#64748b' },
           { label: 'Confirmed', value: bookings.filter((b: any) => b.status === 'CONFIRMED').length, color: '#16a34a' },
           { label: 'In Progress', value: bookings.filter((b: any) => b.status === 'IN_PROGRESS').length, color: '#f59e0b' },
           { label: 'Unpaid', value: bookings.filter((b: any) => b.paymentStatus === 'UNPAID').length, color: '#ef4444' },
-          { label: 'Total Value', value: `$${bookings.reduce((s: number, b: any) => s + Number(b.totalAmount), 0).toLocaleString()}`, color: '#2563eb' },
+          { label: 'Page Total', value: `$${bookings.reduce((s: number, b: any) => s + Number(b.totalAmount), 0).toLocaleString()}`, color: '#2563eb' },
         ].map(s => (
           <div key={s.label} style={{
             background: 'white', borderRadius: 8, padding: '8px 16px',
@@ -148,7 +163,7 @@ export default function Bookings() {
                 <th>Customer</th>
                 <th>Trip</th>
                 <th>Agent</th>
-                <th>Dates</th>
+                <th>Departure</th>
                 <th>Amount</th>
                 <th>Payment</th>
                 <th>Status</th>
@@ -163,57 +178,80 @@ export default function Bookings() {
                     <button className="btn btn-primary" onClick={openCreate}><Plus size={14} /> Create First Booking</button>
                   </div>
                 </td></tr>
-              ) : bookings.map((b: any) => (
-                <tr key={b.id}>
-                  <td style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{b.bookingNumber}</td>
-                  <td>
-                    <div style={{ fontWeight: 500, fontSize: 13 }}>{b.customer?.firstName} {b.customer?.lastName}</div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{b.customer?.email}</div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{b.title}</div>
-                    {b.destination && <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{b.destination}</div>}
-                  </td>
-                  <td style={{ fontSize: 12 }}>
-                    {b.agent ? `${b.agent.firstName} ${b.agent.lastName}` : '—'}
-                  </td>
-                  <td style={{ fontSize: 11, color: 'var(--gray-500)' }}>
-                    {b.departureDate ? new Date(b.departureDate).toLocaleDateString() : '—'}
-                    {b.returnDate ? <><br />{new Date(b.returnDate).toLocaleDateString()}</> : ''}
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{b.currency} {Number(b.totalAmount).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: '#16a34a' }}>Paid: {Number(b.paidAmount).toLocaleString()}</div>
-                  </td>
-                  <td>
-                    <span className={`badge ${paymentColor[b.paymentStatus] || 'badge-gray'}`}>
-                      {b.paymentStatus}
-                    </span>
-                  </td>
-                  <td>
-                    <select value={b.status}
-                      onChange={e => handleStatusChange(b.id, e.target.value)}
-                      className={`badge ${statusColor[b.status] || 'badge-gray'}`}
-                      style={{ border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 11 }}>
-                      {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(b)} title="Edit">
-                        <Pencil size={12} />
-                      </button>
-                      <span className="badge badge-gray" style={{ fontSize: 10 }}>
-                        {b._count?.invoices || 0} inv
+              ) : bookings.map((b: any) => {
+                const days = departureDays(b.departureDate)
+                return (
+                  <tr key={b.id}>
+                    <td style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{b.bookingNumber}</td>
+                    <td>
+                      <div style={{ fontWeight: 500, fontSize: 13 }}>{b.customer?.firstName} {b.customer?.lastName}</div>
+                      <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{b.customer?.email}</div>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{b.title}</div>
+                      {b.destination && <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{b.destination}</div>}
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      {b.agent ? `${b.agent.firstName} ${b.agent.lastName}` : '—'}
+                    </td>
+                    <td style={{ fontSize: 11 }}>
+                      {b.departureDate ? (
+                        <>
+                          <div style={{ color: 'var(--gray-600)' }}>{new Date(b.departureDate).toLocaleDateString()}</div>
+                          {days !== null && (
+                            <div style={{
+                              fontSize: 10, fontWeight: 600, marginTop: 2,
+                              color: days < 0 ? 'var(--gray-400)' : days <= 7 ? '#dc2626' : days <= 30 ? '#f59e0b' : '#16a34a'
+                            }}>
+                              {days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'Today!' : `in ${days}d`}
+                            </div>
+                          )}
+                        </>
+                      ) : '—'}
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{b.currency} {Number(b.totalAmount).toLocaleString()}</div>
+                      <div style={{ fontSize: 11, color: '#16a34a' }}>Paid: {Number(b.paidAmount).toLocaleString()}</div>
+                    </td>
+                    <td>
+                      <span className={`badge ${paymentColor[b.paymentStatus] || 'badge-gray'}`}>
+                        {b.paymentStatus}
                       </span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td>
+                      <select value={b.status}
+                        onChange={e => handleStatusChange(b.id, e.target.value)}
+                        className={`badge ${statusColor[b.status] || 'badge-gray'}`}
+                        style={{ border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 11 }}>
+                        {STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <button className="btn btn-outline btn-sm" onClick={() => openEdit(b)} title="Edit">
+                          <Pencil size={12} />
+                        </button>
+                        {isAdmin && (
+                          <button className="btn btn-sm" title="Delete"
+                            style={{ color: '#dc2626', border: '1px solid #fca5a5', background: 'white', padding: '4px 8px', borderRadius: 6, cursor: 'pointer' }}
+                            onClick={() => handleDelete(b)}>
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                        <span className="badge badge-gray" style={{ fontSize: 10 }}>
+                          {b._count?.invoices || 0} inv
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </div>
+
+      <Pagination page={page} total={total} limit={LIMIT} onPage={setPage} />
 
       {/* Create / Edit Modal */}
       {showModal && (

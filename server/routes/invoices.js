@@ -8,11 +8,19 @@ router.use(authenticate)
 
 router.get('/', async (req, res) => {
   try {
-    const { status, customerId, bookingId } = req.query
+    const { status, customerId, bookingId, search } = req.query
     const where = { agencyId: req.agencyId }
     if (status) where.status = status
     if (customerId) where.customerId = customerId
     if (bookingId) where.bookingId = bookingId
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { customer: { firstName: { contains: search, mode: 'insensitive' } } },
+        { customer: { lastName: { contains: search, mode: 'insensitive' } } },
+        { customer: { email: { contains: search, mode: 'insensitive' } } },
+      ]
+    }
 
     const invoices = await prisma.invoice.findMany({
       where,
@@ -90,17 +98,46 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { status, dueDate, notes } = req.body
+    const { status, dueDate, notes, currency, discount, tax, items } = req.body
     const updates = {}
     if (status) updates.status = status
     if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null
     if (notes !== undefined) updates.notes = notes
+    if (currency) updates.currency = currency
     if (status === 'SENT') updates.sentAt = new Date()
     if (status === 'PAID') updates.paidAt = new Date()
 
+    if (items && Array.isArray(items)) {
+      const existing = await prisma.invoice.findFirst({ where: { id: req.params.id } })
+      if (!existing) return res.status(404).json({ error: 'Not found' })
+
+      const parsedItems = items.map((i, idx) => ({
+        description: i.description,
+        quantity: Number(i.quantity) || 1,
+        unitPrice: Number(i.unitPrice) || 0,
+        total: (Number(i.quantity) || 1) * (Number(i.unitPrice) || 0),
+        sortOrder: idx
+      }))
+      const subtotal = parsedItems.reduce((s, i) => s + i.total, 0)
+      const discountAmt = discount !== undefined ? Number(discount) : Number(existing.discount)
+      const taxAmt = tax !== undefined ? Number(tax) : Number(existing.tax)
+      const total = subtotal - discountAmt + taxAmt
+      const amountDue = Math.max(0, total - Number(existing.amountPaid))
+
+      await prisma.invoiceItem.deleteMany({ where: { invoiceId: req.params.id } })
+      updates.subtotal = subtotal
+      updates.discount = discountAmt
+      updates.tax = taxAmt
+      updates.total = total
+      updates.amountDue = amountDue
+      updates.status = amountDue <= 0 && Number(existing.amountPaid) > 0 ? 'PAID' : (status || existing.status)
+      updates.items = { create: parsedItems }
+    }
+
     const invoice = await prisma.invoice.update({
       where: { id: req.params.id },
-      data: updates
+      data: updates,
+      include: { items: true, customer: true }
     })
     res.json(invoice)
   } catch (err) {

@@ -66,7 +66,7 @@ router.get('/:id', async (req, res) => {
 // Create lead
 router.post('/', async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, source, destination, travelDates, numTravelers, budget, currency, notes, assignedToId, tags } = req.body
+    const { firstName, lastName, email, phone, source, destination, travelDates, numTravelers, budget, currency, notes, assignedToId, tags, followUpDate } = req.body
     const lead = await prisma.lead.create({
       data: {
         agencyId: req.agencyId,
@@ -75,6 +75,7 @@ router.post('/', async (req, res) => {
         budget: budget ? Number(budget) : null,
         currency: currency || 'USD', notes,
         assignedToId, tags: tags || [],
+        followUpDate: followUpDate ? new Date(followUpDate) : null,
         activities: {
           create: { type: 'created', note: 'Lead created' }
         }

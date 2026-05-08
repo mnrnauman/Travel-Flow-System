@@ -115,4 +115,197 @@ router.get('/sales', async (req, res) => {
   }
 })
 
+router.get('/today', async (req, res) => {
+  try {
+    const agencyId = req.agencyId
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+    const in90Days = new Date(todayStart.getTime() + 90 * 24 * 60 * 60 * 1000)
+
+    const [departures, followUps, overdueInvoices, recentBookings, expiringPassports] = await Promise.all([
+      prisma.booking.findMany({
+        where: { agencyId, departureDate: { gte: todayStart, lt: todayEnd }, status: { not: 'CANCELLED' } },
+        include: { customer: { select: { firstName: true, lastName: true, phone: true } } },
+        orderBy: { departureDate: 'asc' }
+      }),
+      prisma.lead.findMany({
+        where: { agencyId, followUpDate: { gte: todayStart, lt: todayEnd }, status: { notIn: ['BOOKED', 'LOST'] } },
+        include: { assignedTo: { select: { firstName: true, lastName: true } } },
+        orderBy: { followUpDate: 'asc' }
+      }),
+      prisma.invoice.findMany({
+        where: { agencyId, status: { in: ['OVERDUE', 'SENT', 'PARTIAL'] }, dueDate: { lt: todayEnd } },
+        include: { customer: { select: { firstName: true, lastName: true } } },
+        orderBy: { dueDate: 'asc' },
+        take: 10
+      }),
+      prisma.booking.findMany({
+        where: { agencyId },
+        include: { customer: { select: { firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 5
+      }),
+      prisma.customer.findMany({
+        where: {
+          agencyId,
+          passportExpiry: { gte: todayStart, lte: in90Days }
+        },
+        select: {
+          id: true, firstName: true, lastName: true, phone: true,
+          passportExpiry: true, passportNumber: true
+        },
+        orderBy: { passportExpiry: 'asc' },
+        take: 20
+      })
+    ])
+
+    res.json({ departures, followUps, overdueInvoices, recentBookings, expiringPassports })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/monthly', async (req, res) => {
+  try {
+    const agencyId = req.agencyId
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+
+    const [invoices, bookings, leads] = await Promise.all([
+      prisma.invoice.findMany({
+        where: { agencyId, createdAt: { gte: start } },
+        select: { createdAt: true, total: true, amountPaid: true }
+      }),
+      prisma.booking.findMany({
+        where: { agencyId, createdAt: { gte: start } },
+        select: { createdAt: true }
+      }),
+      prisma.lead.findMany({
+        where: { agencyId, createdAt: { gte: start } },
+        select: { createdAt: true }
+      })
+    ])
+
+    const months = []
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${d.getMonth()}`
+      const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+
+      const mInvoices = invoices.filter(inv => {
+        const d2 = new Date(inv.createdAt)
+        return `${d2.getFullYear()}-${d2.getMonth()}` === key
+      })
+
+      months.push({
+        month: label,
+        revenue: mInvoices.reduce((s, inv) => s + (inv.total || 0), 0),
+        collected: mInvoices.reduce((s, inv) => s + (inv.amountPaid || 0), 0),
+        bookings: bookings.filter(b => {
+          const d2 = new Date(b.createdAt)
+          return `${d2.getFullYear()}-${d2.getMonth()}` === key
+        }).length,
+        leads: leads.filter(l => {
+          const d2 = new Date(l.createdAt)
+          return `${d2.getFullYear()}-${d2.getMonth()}` === key
+        }).length
+      })
+    }
+
+    res.json({ months })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/export/bookings', async (req, res) => {
+  try {
+    const { from, to, status } = req.query
+    const where = { agencyId: req.agencyId }
+    if (status) where.status = status
+    if (from || to) {
+      where.createdAt = {}
+      if (from) where.createdAt.gte = new Date(from)
+      if (to) where.createdAt.lte = new Date(to)
+    }
+
+    const bookings = await prisma.booking.findMany({
+      where,
+      include: {
+        customer: { select: { firstName: true, lastName: true, email: true, phone: true } },
+        agent: { select: { firstName: true, lastName: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    const rows = [
+      ['Booking #', 'Title', 'Customer', 'Email', 'Phone', 'Agent', 'Destination', 'Departure', 'Return', 'Travelers', 'Amount', 'Currency', 'Paid', 'Payment Status', 'Booking Status', 'Created'],
+      ...bookings.map(b => [
+        b.bookingNumber, b.title,
+        `${b.customer?.firstName || ''} ${b.customer?.lastName || ''}`.trim(),
+        b.customer?.email || '',
+        b.customer?.phone || '',
+        b.agent ? `${b.agent.firstName} ${b.agent.lastName}` : '',
+        b.destination || '',
+        b.departureDate ? new Date(b.departureDate).toLocaleDateString() : '',
+        b.returnDate ? new Date(b.returnDate).toLocaleDateString() : '',
+        b.numTravelers,
+        b.totalAmount,
+        b.currency,
+        b.paidAmount,
+        b.paymentStatus,
+        b.status,
+        new Date(b.createdAt).toLocaleDateString()
+      ])
+    ]
+
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', 'attachment; filename="bookings.csv"')
+    res.send(csv)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.get('/export/leads', async (req, res) => {
+  try {
+    const { from, to, status } = req.query
+    const where = { agencyId: req.agencyId }
+    if (status) where.status = status
+    if (from || to) {
+      where.createdAt = {}
+      if (from) where.createdAt.gte = new Date(from)
+      if (to) where.createdAt.lte = new Date(to)
+    }
+
+    const leads = await prisma.lead.findMany({
+      where,
+      include: { assignedTo: { select: { firstName: true, lastName: true } } },
+      orderBy: { createdAt: 'desc' }
+    })
+
+    const rows = [
+      ['First Name', 'Last Name', 'Email', 'Phone', 'Source', 'Status', 'Destination', 'Travel Dates', 'Travelers', 'Budget', 'Currency', 'Assigned To', 'Follow-up Date', 'Notes', 'Created'],
+      ...leads.map(l => [
+        l.firstName, l.lastName, l.email || '', l.phone || '',
+        l.source, l.status, l.destination || '', l.travelDates || '',
+        l.numTravelers || '', l.budget || '', l.currency,
+        l.assignedTo ? `${l.assignedTo.firstName} ${l.assignedTo.lastName}` : '',
+        l.followUpDate ? new Date(l.followUpDate).toLocaleDateString() : '',
+        (l.notes || '').replace(/\n/g, ' '),
+        new Date(l.createdAt).toLocaleDateString()
+      ])
+    ]
+
+    const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+    res.setHeader('Content-Type', 'text/csv')
+    res.setHeader('Content-Disposition', 'attachment; filename="leads.csv"')
+    res.send(csv)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

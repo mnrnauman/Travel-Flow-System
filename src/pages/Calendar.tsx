@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { CalendarDays, Plane, DollarSign, Phone, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react'
+import { CalendarDays, Plane, DollarSign, Phone, ChevronLeft, ChevronRight, AlertCircle, ShieldAlert } from 'lucide-react'
 import api from '../lib/api'
 import { Spinner } from '../components/ui'
 
 interface CalEvent {
   id: string
   date: string
-  type: 'departure' | 'return' | 'invoice_due' | 'followup'
+  type: 'departure' | 'return' | 'invoice_due' | 'followup' | 'passport_expiry'
   title: string
   sub: string
   color: string
@@ -19,6 +19,7 @@ const TYPE_ICON: Record<string, any> = {
   return: Plane,
   invoice_due: DollarSign,
   followup: Phone,
+  passport_expiry: ShieldAlert,
 }
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -37,7 +38,8 @@ export default function Calendar({ onNavigate }: { onNavigate?: (page: string) =
       api.get('/bookings?limit=100'),
       api.get('/invoices?limit=100'),
       api.get('/leads?limit=100'),
-    ]).then(([bk, inv, leads]) => {
+      api.get('/customers?limit=500'),
+    ]).then(([bk, inv, leads, customers]) => {
       const evts: CalEvent[] = []
 
       for (const b of (bk.data.bookings || bk.data)) {
@@ -78,6 +80,26 @@ export default function Calendar({ onNavigate }: { onNavigate?: (page: string) =
           sub: l.destination || l.email || '',
           color: '#059669', link: 'leads', linkId: l.id
         })
+      }
+
+      // Passport expiry events
+      for (const c of (customers.data.customers || [])) {
+        if (c.passportExpiry) {
+          const expiryDate = c.passportExpiry.slice(0, 10)
+          const daysUntil = Math.ceil((new Date(expiryDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+          if (daysUntil >= -30 && daysUntil <= 365) {
+            evts.push({
+              id: `passport-${c.id}`,
+              date: expiryDate,
+              type: 'passport_expiry',
+              title: `Passport Expiry: ${c.firstName} ${c.lastName}`,
+              sub: c.passportNumber ? `Passport: ${c.passportNumber}` : c.nationality || '',
+              color: daysUntil < 30 ? '#dc2626' : '#f59e0b',
+              link: 'customers',
+              linkId: c.id
+            })
+          }
+        }
       }
 
       const unique = Array.from(new Map(evts.map(e => [e.id, e])).values())
@@ -146,7 +168,7 @@ export default function Calendar({ onNavigate }: { onNavigate?: (page: string) =
                   style={{
                     minHeight: 80, padding: '6px 8px',
                     borderRight: '1px solid var(--gray-100)', borderBottom: '1px solid var(--gray-100)',
-                    cursor: dayEvts.length > 0 || true ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     background: isSelected ? '#eff6ff' : 'transparent',
                     transition: 'background 0.1s'
                   }}>
@@ -224,6 +246,8 @@ export default function Calendar({ onNavigate }: { onNavigate?: (page: string) =
             { color: '#7c3aed', label: 'Return' },
             { color: '#d97706', label: 'Invoice Due' },
             { color: '#059669', label: 'Follow-up' },
+            { color: '#dc2626', label: 'Passport Expiry (urgent)' },
+            { color: '#f59e0b', label: 'Passport Expiry' },
           ].map(l => (
             <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <div style={{ width: 10, height: 10, borderRadius: 2, background: l.color }} />

@@ -85,6 +85,8 @@ function AppRoutes() {
     <Layout activePage={activePage} onNavigate={setActivePage}>
       {activePage === 'calendar'
         ? <Calendar onNavigate={setActivePage} />
+        : activePage === 'dashboard'
+        ? <Dashboard onNavigate={setActivePage} />
         : <PageComponent />}
     </Layout>
   )

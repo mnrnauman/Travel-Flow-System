@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { Plus, UserCog } from 'lucide-react'
+import { Plus, UserCog, ToggleLeft, ToggleRight } from 'lucide-react'
 import api from '../lib/api'
 
 const ROLES = ['ADMIN', 'MANAGER', 'AGENT']
@@ -36,6 +36,13 @@ export default function Team() {
       return api.post('/users', form)
     })
     if (res) { setShowModal(false); refetch() }
+  }
+
+  const handleToggleActive = async (u: any) => {
+    const action = u.isActive ? 'deactivate' : 'activate'
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${u.firstName} ${u.lastName}?`)) return
+    await api.put(`/users/${u.id}`, { isActive: !u.isActive })
+    refetch()
   }
 
   if (loading) return <Spinner />
@@ -94,7 +101,18 @@ export default function Team() {
                     </span>
                   </td>
                   <td>
-                    <button className="btn btn-outline btn-sm" onClick={() => openEdit(u)}>Edit</button>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button className="btn btn-outline btn-sm" onClick={() => openEdit(u)}>Edit</button>
+                      <button
+                        title={u.isActive ? 'Deactivate' : 'Activate'}
+                        onClick={() => handleToggleActive(u)}
+                        style={{
+                          border: 'none', background: 'none', cursor: 'pointer', padding: 4,
+                          color: u.isActive ? '#16a34a' : '#94a3b8'
+                        }}>
+                        {u.isActive ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

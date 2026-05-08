@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useApi, useSubmit } from '../hooks/useApi'
 import { Spinner, ErrorBox, Modal } from '../components/ui'
-import { Plus, Search, Package, Star } from 'lucide-react'
+import { Plus, Search, Package, Star, Phone, Mail, Globe, MessageCircle } from 'lucide-react'
 import api from '../lib/api'
+import Pagination from '../components/Pagination'
 
 const TYPES = ['HOTEL', 'AIRLINE', 'TOUR_OPERATOR', 'TRANSFER', 'ACTIVITY', 'VISA', 'INSURANCE', 'OTHER']
 const typeColor: Record<string, string> = {
@@ -17,16 +18,23 @@ const EMPTY_FORM = {
   rating: '', notes: ''
 }
 
+const LIMIT = 12
+
 export default function Suppliers() {
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
+  const [page, setPage] = useState(1)
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const { submit, submitting, error: submitError } = useSubmit()
 
   const url = `/suppliers?${search ? `search=${encodeURIComponent(search)}&` : ''}${filterType !== 'all' ? `type=${filterType}&` : ''}`
-  const { data: suppliers, loading, error, refetch } = useApi<any[]>(url, [search, filterType])
+  const { data: allSuppliers, loading, error, refetch } = useApi<any[]>(url, [search, filterType])
+
+  const suppliers = allSuppliers || []
+  const total = suppliers.length
+  const paged = suppliers.slice((page - 1) * LIMIT, page * LIMIT)
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -66,9 +74,9 @@ export default function Suppliers() {
           <div className="search-bar">
             <Search size={15} className="search-icon" />
             <input className="form-input" placeholder="Search suppliers..." value={search}
-              onChange={e => setSearch(e.target.value)} style={{ width: 220 }} />
+              onChange={e => { setSearch(e.target.value); setPage(1) }} style={{ width: 220 }} />
           </div>
-          <select className="form-select" value={filterType} onChange={e => setFilterType(e.target.value)} style={{ width: 150 }}>
+          <select className="form-select" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1) }} style={{ width: 150 }}>
             <option value="all">All Types</option>
             {TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
           </select>
@@ -79,11 +87,11 @@ export default function Suppliers() {
       </div>
 
       <div className="grid-3" style={{ gap: 12 }}>
-        {!suppliers || suppliers.length === 0 ? (
+        {paged.length === 0 ? (
           <div className="card" style={{ gridColumn: '1/-1' }}>
             <div className="empty-state"><Package size={40} /><p>No suppliers yet</p></div>
           </div>
-        ) : suppliers.map((s: any) => (
+        ) : paged.map((s: any) => (
           <div className="card" key={s.id}>
             <div style={{ padding: 16 }}>
               <div className="flex justify-between items-center" style={{ marginBottom: 10 }}>
@@ -97,11 +105,42 @@ export default function Suppliers() {
                 )}
               </div>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{s.name}</div>
-              {s.country && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 2 }}>📍 {s.country}</div>}
-              {s.contactPerson && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 2 }}>👤 {s.contactPerson}</div>}
-              {s.email && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 2 }}>✉️ {s.email}</div>}
-              {s.phone && <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>📞 {s.phone}</div>}
-              {s.notes && <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8, borderTop: '1px solid var(--gray-100)', paddingTop: 8 }}>{s.notes}</div>}
+              {s.country && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 4 }}>📍 {s.country}</div>}
+              {s.contactPerson && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 6 }}>👤 {s.contactPerson}</div>}
+
+              {/* Clickable contact links */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {s.email && (
+                  <a href={`mailto:${s.email}`} style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Mail size={11} /> {s.email}
+                  </a>
+                )}
+                {s.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <a href={`tel:${s.phone}`} style={{ fontSize: 12, color: 'var(--gray-600)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Phone size={11} /> {s.phone}
+                    </a>
+                    <a href={`https://wa.me/${s.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer"
+                      title="WhatsApp"
+                      style={{ color: '#25d366', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, textDecoration: 'none' }}>
+                      <MessageCircle size={11} /> WA
+                    </a>
+                  </div>
+                )}
+                {s.website && (
+                  <a href={s.website.startsWith('http') ? s.website : `https://${s.website}`}
+                    target="_blank" rel="noreferrer"
+                    style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Globe size={11} /> {s.website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+              </div>
+
+              {s.notes && (
+                <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 8, borderTop: '1px solid var(--gray-100)', paddingTop: 8 }}>
+                  {s.notes}
+                </div>
+              )}
             </div>
             <div style={{ padding: '10px 16px', borderTop: '1px solid var(--gray-100)', display: 'flex', gap: 8 }}>
               <button className="btn btn-outline btn-sm" onClick={() => openEdit(s)}>Edit</button>
@@ -111,6 +150,12 @@ export default function Suppliers() {
           </div>
         ))}
       </div>
+
+      {total > LIMIT && (
+        <div style={{ marginTop: 16 }}>
+          <Pagination page={page} total={total} limit={LIMIT} onPage={p => { setPage(p); window.scrollTo(0, 0) }} />
+        </div>
+      )}
 
       {showModal && (
         <Modal title={editItem ? 'Edit Supplier' : 'Add Supplier'} onClose={() => setShowModal(false)}
@@ -165,7 +210,7 @@ export default function Suppliers() {
             </div>
             <div className="form-group">
               <label className="form-label">Website</label>
-              <input className="form-input" value={form.website} onChange={e => set('website', e.target.value)} />
+              <input className="form-input" value={form.website} onChange={e => set('website', e.target.value)} placeholder="https://..." />
             </div>
           </div>
           <div className="form-group">
